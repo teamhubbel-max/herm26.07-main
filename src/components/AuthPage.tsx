@@ -97,6 +97,26 @@ export const AuthPage: React.FC = () => {
                 <div>
                   <h3 className="text-sm font-medium text-red-800">Ошибка авторизации</h3>
                   <p className="text-sm text-red-700 mt-1">{error}</p>
+                  {error.includes('Неверный email или пароль') && (
+                    <p className="text-sm text-red-600 mt-2">
+                      💡 Возможно, вам нужно сначала <button 
+                        onClick={() => setIsSignUp(true)}
+                        className="underline hover:no-underline font-medium"
+                      >
+                        зарегистрироваться
+                      </button>
+                    </p>
+                  )}
+                  {error.includes('уже существует') && (
+                    <p className="text-sm text-red-600 mt-2">
+                      💡 Попробуйте <button 
+                        onClick={() => setIsSignUp(false)}
+                        className="underline hover:no-underline font-medium"
+                      >
+                        войти
+                      </button> с этим email
+                    </p>
+                  )}
                 </div>
               </div>
             )}
