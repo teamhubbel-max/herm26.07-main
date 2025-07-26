@@ -105,15 +105,16 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
 
   const hasUnassignedTasks = Object.values(unassignedTasks).some(tasks => tasks.length > 0);
 
-  if (hasUnassignedTasks) {
-    users.push({
-      id: 'unassigned',
-      name: 'Неназначенные',
-      avatar: 'https://ui-avatars.com/api/?name=?&background=cccccc&color=666666',
-      role: 'observer',
-      tasks: unassignedTasks
-    });
-  }
+  // Убираем фейкового пользователя "Неназначенные"
+  // if (hasUnassignedTasks) {
+  //   users.push({
+  //     id: 'unassigned',
+  //     name: 'Неназначенные',
+  //     avatar: 'https://ui-avatars.com/api/?name=?&background=cccccc&color=666666',
+  //     role: 'observer',
+  //     tasks: unassignedTasks
+  //   });
+  // }
 
   const handleDragEnd = (result: DropResult) => {
     onMoveTask(result.draggableId, result.destination?.droppableId || '', result.destination?.index || 0);

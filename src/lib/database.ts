@@ -594,10 +594,24 @@ class LocalDatabase {
 
   // Clear user data (for logout)
   clearUserData(userId: string): void {
-    const tables = ['projects', 'project_members', 'tasks', 'task_comments', 'documents', 'activity_logs'];
+    const tables = ['projects', 'project_members', 'tasks', 'task_comments', 'documents', 'activity_logs', 'user_settings', 'project_invitations'];
     tables.forEach(table => {
       localStorage.removeItem(this.getKey(table, userId));
     });
+  }
+
+  // Get all user data for export
+  getAllUserData(userId: string): any {
+    return {
+      projects: this.getProjects(userId),
+      tasks: this.getTasks(userId),
+      documents: this.getDocuments(userId),
+      projectMembers: this.getProjectMembers(userId),
+      taskComments: this.getTaskComments(userId),
+      activityLogs: this.getActivityLogs(userId),
+      userSettings: this.getUserSettings(userId),
+      projectInvitations: this.getProjectInvitations(userId)
+    };
   }
 }
 

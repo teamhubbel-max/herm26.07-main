@@ -51,58 +51,49 @@ export const useBoard = (projectId?: string) => {
   const moveTask = (taskId: string, destinationColumnId: string, destinationIndex: number) => {
     if (!user) return;
 
-    // Найдем задачу в текущих колонках
-    let sourceTask: TaskWithDetails | undefined;
-    let sourceColumnIndex = -1;
-    let sourceTaskIndex = -1;
-
-    // Найдем задачу и ее текущую позицию
-    for (let i = 0; i < board.columns.length; i++) {
-      const taskIndex = board.columns[i].tasks.findIndex(t => t.id === taskId);
-      if (taskIndex !== -1) {
-        sourceTask = board.columns[i].tasks[taskIndex];
-        sourceColumnIndex = i;
-        sourceTaskIndex = taskIndex;
-        break;
-      }
-    }
-
-    if (!sourceTask) return;
-
-    // Определим новый статус
-    let newStatus: Task['status'];
-    switch (destinationColumnId) {
-      case 'todo':
-        newStatus = 'todo';
-        break;
-      case 'inprogress':
-        newStatus = 'inprogress';
-        break;
-      case 'inprogress2':
-        newStatus = 'inprogress2';
-        break;
-      case 'done':
-        newStatus = 'done';
-        break;
-      default:
-        newStatus = 'todo';
-    }
-
-    // Создаем обновленную задачу
-    const updatedTask = { ...sourceTask, status: newStatus };
-
-    // Обновляем состояние доски синхронно
     setBoard(prevBoard => {
+      // Найдем задачу в текущих колонках
+      let sourceTask: TaskWithDetails | undefined;
+      let sourceColumnIndex = -1;
+
+      // Найдем задачу и ее текущую позицию
+      for (let i = 0; i < prevBoard.columns.length; i++) {
+        const taskIndex = prevBoard.columns[i].tasks.findIndex(t => t.id === taskId);
+        if (taskIndex !== -1) {
+          sourceTask = prevBoard.columns[i].tasks[taskIndex];
+          sourceColumnIndex = i;
+          break;
+        }
+      }
+
+      if (!sourceTask) return prevBoard;
+
+      // Определим новый статус на основе destinationColumnId
+      let newStatus: Task['status'];
+      if (destinationColumnId.includes('todo')) newStatus = 'todo';
+      else if (destinationColumnId.includes('inprogress2')) newStatus = 'inprogress2';
+      else if (destinationColumnId.includes('inprogress')) newStatus = 'inprogress';
+      else if (destinationColumnId.includes('done')) newStatus = 'done';
+      else newStatus = 'todo';
+
+      // Создаем обновленную задачу
+      const updatedTask = { ...sourceTask, status: newStatus };
+
       const newColumns = [...prevBoard.columns];
       
       // Удаляем задачу из исходной колонки
-      newColumns[sourceColumnIndex] = {
-        ...newColumns[sourceColumnIndex],
-        tasks: newColumns[sourceColumnIndex].tasks.filter(t => t.id !== taskId)
-      };
+      if (sourceColumnIndex !== -1) {
+        newColumns[sourceColumnIndex] = {
+          ...newColumns[sourceColumnIndex],
+          tasks: newColumns[sourceColumnIndex].tasks.filter(t => t.id !== taskId)
+        };
+      }
       
       // Находим целевую колонку и добавляем задачу
-      const destinationColumnIndex = newColumns.findIndex(col => col.id === destinationColumnId);
+      const destinationColumnIndex = newColumns.findIndex(col => 
+        destinationColumnId.includes(col.id) || destinationColumnId.endsWith(col.id)
+      );
+      
       if (destinationColumnIndex !== -1) {
         const destinationTasks = [...newColumns[destinationColumnIndex].tasks];
         destinationTasks.splice(destinationIndex, 0, updatedTask);
@@ -113,18 +104,31 @@ export const useBoard = (projectId?: string) => {
         };
       }
       
+      // Асинхронно обновляем задачу в базе данных
+      setTimeout(() => {
+        db.updateTask(taskId, { status: newStatus }, user.id);
+      }, 0);
+      
       return {
         ...prevBoard,
         columns: newColumns
       };
     });
-
-    // Обновляем задачу в базе данных (асинхронно, после обновления UI)
-    db.updateTask(taskId, { status: newStatus }, user.id);
   };
 
   const addTask = (task: Omit<TaskWithDetails, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!task) return;
+    if (!task || !user || !projectId) return;
+
+    // Проверяем дублирование задач по названию
+    const existingTasks = db.getTasksByProject(projectId, user.id);
+    const isDuplicate = existingTasks.some(existingTask => 
+      existingTask.title.toLowerCase() === task.title.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      console.warn('Task with this title already exists');
+      return;
+    }
 
     const newTask = db.createTask({
       title: task.title,
@@ -132,8 +136,8 @@ export const useBoard = (projectId?: string) => {
       status: task.status,
       priority: task.priority,
       category: task.category,
-      project_id: projectId,
-      assignee_id: task.assignee,
+      project_id: projectId!,
+      assignee_id: task.assignee || undefined,
       created_by: user.id,
       due_date: task.dueDate?.toISOString()
     }, user.id);

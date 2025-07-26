@@ -295,7 +295,7 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
             <label className="flex items-center text-sm font-semibold text-gray-800">
               Статус задачи
             </label>
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {[
                 { value: 'todo', label: 'Холодильник', icon: '❄️' },
                 { value: 'inprogress', label: 'Сделать', icon: '📋' },

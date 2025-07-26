@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Bell, Palette, Database, Shield, Save, Building, Phone, MapPin, Mail, MessageCircle, Link } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { db } from '../lib/database';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -44,6 +45,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     connected: false
   });
 
+  // Загружаем настройки пользователя
+  useEffect(() => {
+    if (user) {
+      const userSettings = db.getUserSettings(user.id) || db.createUserSettings(user.id);
+      setNotifications(userSettings.notifications);
+      setAppearance(userSettings.appearance);
+      setTelegram(userSettings.telegram);
+    }
+  }, [user]);
+
   const handleTelegramConnect = () => {
     if (telegram.username && !telegram.connected) {
       setTelegram(prev => ({ ...prev, connected: true }));
@@ -81,11 +92,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setLoading(true);
     try {
       await updateProfile(profileData);
+      
+      // Сохраняем настройки пользователя
+      if (user) {
+        db.updateUserSettings(user.id, {
+          notifications,
+          appearance,
+          telegram
+        });
+        
+        // Применяем тему
+        applyTheme(appearance.theme);
+        
+        // Применяем язык (базовая реализация)
+        document.documentElement.lang = appearance.language;
+      }
+      
       // Показать уведомление об успешном сохранении
     } catch (error) {
       console.error('Error updating profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyTheme = (theme: string) => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else if (theme === 'light') {
+      root.classList.remove('dark');
+    } else { // system
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.classList.toggle('dark', isDark);
     }
   };
 
@@ -329,15 +368,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </p>
             </div>
             <div className="space-y-3">
-              <button className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200">
+              <button 
+                onClick={handleExportData}
+                className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200"
+              >
                 Экспорт данных
               </button>
-              <button className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors duration-200">
+              <button 
+                onClick={handleImportData}
+                className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors duration-200"
+              >
                 Импорт данных
               </button>
-              <button className="w-full bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200">
+              <button 
+                onClick={handleClearData}
+                className="w-full bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200"
+              >
                 Очистить все данные
               </button>
+              <input
+                type="file"
+                id="import-file"
+                accept=".json"
+                style={{ display: 'none' }}
+                onChange={handleFileImport}
+              />
             </div>
           </div>
         );
@@ -413,6 +468,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       default:
         return null;
+    }
+  };
+
+  const handleExportData = () => {
+    if (!user) return;
+
+    const exportData = {
+      projects: db.getProjects(user.id),
+      tasks: db.getTasks(user.id),
+      documents: db.getDocuments(user.id),
+      settings: db.getUserSettings(user.id),
+      exportDate: new Date().toISOString()
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `hermes-backup-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = () => {
+    const fileInput = document.getElementById('import-file') as HTMLInputElement;
+    fileInput?.click();
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importData = JSON.parse(e.target?.result as string);
+        
+        // Импортируем данные
+        if (importData.projects) {
+          importData.projects.forEach((project: any) => {
+            db.createProject(project, user.id);
+          });
+        }
+        
+        if (importData.tasks) {
+          importData.tasks.forEach((task: any) => {
+            db.createTask(task, user.id);
+          });
+        }
+        
+        if (importData.documents) {
+          importData.documents.forEach((document: any) => {
+            db.createDocument(document, user.id);
+          });
+        }
+        
+        if (importData.settings) {
+          db.updateUserSettings(user.id, importData.settings);
+        }
+        
+        alert('Данные успешно импортированы!');
+        window.location.reload(); // Перезагружаем страницу для обновления данных
+      } catch (error) {
+        console.error('Error importing data:', error);
+        alert('Ошибка при импорте данных');
+      }
+    };
+    
+    reader.readAsText(file);
+    event.target.value = ''; // Сбрасываем значение для повторного импорта
+  };
+
+  const handleClearData = () => {
+    if (!user) return;
+    
+    const confirmed = window.confirm('Вы уверены, что хотите удалить все данные? Это действие нельзя отменить.');
+    if (confirmed) {
+      db.clearUserData(user.id);
+      alert('Данные очищены!');
+      window.location.reload();
     }
   };
 
