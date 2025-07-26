@@ -20,7 +20,6 @@ export const AuthPage: React.FC = () => {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
-      // Здесь будет интеграция с Google OAuth
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
