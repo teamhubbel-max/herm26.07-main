@@ -1,16 +1,29 @@
 import { useState, useEffect } from 'react';
-import { Board, Task } from '../types/Task';
-import { db } from '../lib/database';
+import { supabase, Task } from '../lib/supabase';
 import { useAuth } from './useAuth';
+
+interface BoardColumn {
+  id: string;
+  title: string;
+  status: 'todo' | 'inprogress' | 'inprogress2' | 'done';
+  tasks: TaskWithDetails[];
+}
+
+interface Board {
+  id: string;
+  title: string;
+  columns: BoardColumn[];
+}
 
 interface TaskWithDetails extends Task {
   createdAt: Date;
   updatedAt: Date;
   dueDate?: Date;
+  assignee?: string;
 }
 
 export const useBoard = (projectId?: string) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [board, setBoard] = useState<Board>({
     id: projectId || 'default',
     title: 'Доска задач',
@@ -21,6 +34,9 @@ export const useBoard = (projectId?: string) => {
       { id: 'done', title: 'Выполнено', status: 'done', tasks: [] }
     ]
   });
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && projectId) {
@@ -28,60 +44,83 @@ export const useBoard = (projectId?: string) => {
     }
   }, [user, projectId]);
 
-  const loadTasks = () => {
+  const loadTasks = async () => {
     if (!user || !projectId) return;
 
-    const dbTasks = db.getTasksByProject(projectId, user.id);
-    const tasksWithDates: TaskWithDetails[] = dbTasks.map(task => ({
-      ...task,
-      createdAt: new Date(task.created_at),
-      updatedAt: new Date(task.updated_at),
-      dueDate: task.due_date ? new Date(task.due_date) : undefined
-    }));
+    try {
+      setLoading(true);
+      setError(null);
 
-    setBoard(prev => ({
-      ...prev,
-      columns: prev.columns.map(column => ({
-        ...column,
-        tasks: tasksWithDates.filter(task => task.status === column.status)
-      }))
-    }));
+      const { data: tasks, error: tasksError } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          assignee:profiles!tasks_assignee_id_fkey (
+            full_name
+          )
+        `)
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+
+      if (tasksError) throw tasksError;
+
+      const tasksWithDates: TaskWithDetails[] = (tasks || []).map(task => ({
+        ...task,
+        createdAt: new Date(task.created_at),
+        updatedAt: new Date(task.updated_at),
+        dueDate: task.due_date ? new Date(task.due_date) : undefined,
+        assignee: task.assignee?.full_name || undefined
+      }));
+
+      setBoard(prev => ({
+        ...prev,
+        columns: prev.columns.map(column => ({
+          ...column,
+          tasks: tasksWithDates.filter(task => task.status === column.status)
+        }))
+      }));
+    } catch (err) {
+      console.error('Error loading tasks:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const moveTask = (taskId: string, destinationColumnId: string, destinationIndex: number) => {
+  const moveTask = async (taskId: string, destinationColumnId: string, destinationIndex: number) => {
     if (!user) return;
 
-    setBoard(prevBoard => {
-      // Найдем задачу в текущих колонках
-      let sourceTask: TaskWithDetails | undefined;
-      let sourceColumnIndex = -1;
+    // Find the task in current board state
+    let sourceTask: TaskWithDetails | undefined;
+    let sourceColumnIndex = -1;
 
-      // Найдем задачу и ее текущую позицию
-      for (let i = 0; i < prevBoard.columns.length; i++) {
-        const taskIndex = prevBoard.columns[i].tasks.findIndex(t => t.id === taskId);
-        if (taskIndex !== -1) {
-          sourceTask = prevBoard.columns[i].tasks[taskIndex];
-          sourceColumnIndex = i;
-          break;
-        }
+    for (let i = 0; i < board.columns.length; i++) {
+      const taskIndex = board.columns[i].tasks.findIndex(t => t.id === taskId);
+      if (taskIndex !== -1) {
+        sourceTask = board.columns[i].tasks[taskIndex];
+        sourceColumnIndex = i;
+        break;
       }
+    }
 
-      if (!sourceTask) return prevBoard;
+    if (!sourceTask) return;
 
-      // Определим новый статус на основе destinationColumnId
-      let newStatus: Task['status'];
-      if (destinationColumnId.includes('todo')) newStatus = 'todo';
-      else if (destinationColumnId.includes('inprogress2')) newStatus = 'inprogress2';
-      else if (destinationColumnId.includes('inprogress')) newStatus = 'inprogress';
-      else if (destinationColumnId.includes('done')) newStatus = 'done';
-      else newStatus = 'todo';
+    // Determine new status based on destination column
+    let newStatus: Task['status'];
+    if (destinationColumnId.includes('todo')) newStatus = 'todo';
+    else if (destinationColumnId.includes('inprogress2')) newStatus = 'inprogress2';
+    else if (destinationColumnId.includes('inprogress')) newStatus = 'inprogress';
+    else if (destinationColumnId.includes('done')) newStatus = 'done';
+    else newStatus = 'todo';
 
-      // Создаем обновленную задачу
-      const updatedTask = { ...sourceTask, status: newStatus };
+    // Create updated task
+    const updatedTask = { ...sourceTask, status: newStatus };
 
+    // Optimistically update the board state
+    setBoard(prevBoard => {
       const newColumns = [...prevBoard.columns];
       
-      // Удаляем задачу из исходной колонки
+      // Remove task from source column
       if (sourceColumnIndex !== -1) {
         newColumns[sourceColumnIndex] = {
           ...newColumns[sourceColumnIndex],
@@ -89,7 +128,7 @@ export const useBoard = (projectId?: string) => {
         };
       }
       
-      // Находим целевую колонку и добавляем задачу
+      // Find destination column and add task
       const destinationColumnIndex = newColumns.findIndex(col => 
         destinationColumnId.includes(col.id) || destinationColumnId.endsWith(col.id)
       );
@@ -104,96 +143,234 @@ export const useBoard = (projectId?: string) => {
         };
       }
       
-      // Асинхронно обновляем задачу в базе данных
-      setTimeout(() => {
-        db.updateTask(taskId, { status: newStatus }, user.id);
-      }, 0);
-      
       return {
         ...prevBoard,
         columns: newColumns
       };
     });
-  };
 
-  const addTask = (task: Omit<TaskWithDetails, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!task || !user || !projectId) return;
+    // Update in database
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status: newStatus })
+        .eq('id', taskId);
 
-    // Проверяем дублирование задач по названию
-    const existingTasks = db.getTasksByProject(projectId, user.id);
-    const isDuplicate = existingTasks.some(existingTask => 
-      existingTask.title.toLowerCase() === task.title.toLowerCase()
-    );
-
-    if (isDuplicate) {
-      console.warn('Task with this title already exists');
-      return;
-    }
-
-    const newTask = db.createTask({
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      priority: task.priority,
-      category: task.category,
-      project_id: projectId!,
-      assignee_id: task.assignee || undefined,
-      created_by: user.id,
-      due_date: task.dueDate?.toISOString()
-    }, user.id);
-
-    if (newTask) {
-      loadTasks(); // Перезагружаем задачи
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error updating task status:', err);
+      // Revert optimistic update
+      await loadTasks();
     }
   };
 
-  const updateTask = (taskId: string, updates: Partial<TaskWithDetails>) => {
+  const addTask = async (task: Omit<TaskWithDetails, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (!user || !projectId) return;
+
+    try {
+      // Check for assignee if provided
+      let assigneeId = null;
+      if (task.assignee) {
+        const { data: assigneeProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('full_name', task.assignee)
+          .single();
+        
+        assigneeId = assigneeProfile?.id || null;
+      }
+
+      const { data: newTask, error } = await supabase
+        .from('tasks')
+        .insert({
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          priority: task.priority,
+          category: task.category,
+          project_id: projectId,
+          assignee_id: assigneeId,
+          created_by: user.id,
+          due_date: task.dueDate?.toISOString()
+        })
+        .select(`
+          *,
+          assignee:profiles!tasks_assignee_id_fkey (
+            full_name
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+
+      if (newTask) {
+        const taskWithDetails: TaskWithDetails = {
+          ...newTask,
+          createdAt: new Date(newTask.created_at),
+          updatedAt: new Date(newTask.updated_at),
+          dueDate: newTask.due_date ? new Date(newTask.due_date) : undefined,
+          assignee: newTask.assignee?.full_name || undefined
+        };
+
+        // Add to board state
+        setBoard(prev => ({
+          ...prev,
+          columns: prev.columns.map(column => 
+            column.status === task.status 
+              ? { ...column, tasks: [taskWithDetails, ...column.tasks] }
+              : column
+          )
+        }));
+      }
+    } catch (err) {
+      console.error('Error creating task:', err);
+      setError(err instanceof Error ? err.message : 'Error creating task');
+    }
+  };
+
+  const updateTask = async (taskId: string, updates: Partial<TaskWithDetails>) => {
     if (!user) return;
 
-    const dbUpdates: Partial<Task> = {
-      title: updates.title,
-      description: updates.description,
-      status: updates.status,
-      priority: updates.priority,
-      category: updates.category,
-      assignee_id: updates.assignee,
-      due_date: updates.dueDate?.toISOString()
-    };
+    try {
+      let assigneeId = undefined;
+      if (updates.assignee !== undefined) {
+        if (updates.assignee) {
+          const { data: assigneeProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('full_name', updates.assignee)
+            .single();
+          
+          assigneeId = assigneeProfile?.id || null;
+        } else {
+          assigneeId = null;
+        }
+      }
 
-    const updated = db.updateTask(taskId, dbUpdates, user.id);
-    if (updated) {
-      loadTasks(); // Перезагружаем задачи
+      const dbUpdates: any = {};
+      if (updates.title !== undefined) dbUpdates.title = updates.title;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.status !== undefined) dbUpdates.status = updates.status;
+      if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
+      if (updates.category !== undefined) dbUpdates.category = updates.category;
+      if (assigneeId !== undefined) dbUpdates.assignee_id = assigneeId;
+      if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate?.toISOString() || null;
+
+      const { data: updatedTask, error } = await supabase
+        .from('tasks')
+        .update(dbUpdates)
+        .eq('id', taskId)
+        .select(`
+          *,
+          assignee:profiles!tasks_assignee_id_fkey (
+            full_name
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+
+      if (updatedTask) {
+        const taskWithDetails: TaskWithDetails = {
+          ...updatedTask,
+          createdAt: new Date(updatedTask.created_at),
+          updatedAt: new Date(updatedTask.updated_at),
+          dueDate: updatedTask.due_date ? new Date(updatedTask.due_date) : undefined,
+          assignee: updatedTask.assignee?.full_name || undefined
+        };
+
+        // Update board state
+        setBoard(prev => ({
+          ...prev,
+          columns: prev.columns.map(column => ({
+            ...column,
+            tasks: column.tasks.map(task => 
+              task.id === taskId ? taskWithDetails : task
+            )
+          }))
+        }));
+      }
+    } catch (err) {
+      console.error('Error updating task:', err);
+      setError(err instanceof Error ? err.message : 'Error updating task');
     }
   };
 
-  const deleteTask = (taskId: string) => {
+  const deleteTask = async (taskId: string) => {
     if (!user) return;
 
-    const deleted = db.deleteTask(taskId, user.id);
-    if (deleted) {
-      loadTasks(); // Перезагружаем задачи
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+
+      // Remove from board state
+      setBoard(prev => ({
+        ...prev,
+        columns: prev.columns.map(column => ({
+          ...column,
+          tasks: column.tasks.filter(task => task.id !== taskId)
+        }))
+      }));
+    } catch (err) {
+      console.error('Error deleting task:', err);
+      setError(err instanceof Error ? err.message : 'Error deleting task');
     }
   };
 
-  const addComment = (taskId: string, content: string) => {
+  const addComment = async (taskId: string, content: string) => {
     if (!user) return;
 
-    const comment = db.createTaskComment({
-      task_id: taskId,
-      user_id: user.id,
-      content
-    }, user.id);
+    try {
+      const { data: comment, error } = await supabase
+        .from('task_comments')
+        .insert({
+          task_id: taskId,
+          user_id: user.id,
+          content
+        })
+        .select()
+        .single();
 
-    return comment;
+      if (error) throw error;
+
+      return comment;
+    } catch (err) {
+      console.error('Error adding comment:', err);
+      return null;
+    }
   };
 
-  const getTaskComments = (taskId: string) => {
-    if (!user) return [];
-    return db.getCommentsByTask(taskId, user.id);
+  const getTaskComments = async (taskId: string) => {
+    try {
+      const { data: comments, error } = await supabase
+        .from('task_comments')
+        .select(`
+          *,
+          profile:profiles (
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      return comments || [];
+    } catch (err) {
+      console.error('Error getting task comments:', err);
+      return [];
+    }
   };
 
   return {
     board,
+    loading,
+    error,
     moveTask,
     addTask,
     updateTask,

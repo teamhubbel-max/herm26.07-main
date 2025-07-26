@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { 
   X, 
   Calendar, 
@@ -42,9 +43,15 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState<any[]>([]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (getTaskComments && task) {
-      setComments(getTaskComments(task.id));
+      const loadComments = async () => {
+        if (typeof getTaskComments === 'function') {
+          const taskComments = await getTaskComments(task.id);
+          setComments(taskComments || []);
+        }
+      };
+      loadComments();
     }
   }, [task, getTaskComments]);
 
@@ -99,11 +106,15 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
   const handleAddComment = () => {
     if (comment.trim()) {
       if (onAddComment) {
-        onAddComment(task.id, comment.trim());
-        if (getTaskComments) {
-          setComments(getTaskComments(task.id));
+        const addCommentAsync = async () => {
+          await onAddComment(task.id, comment.trim());
+          if (getTaskComments) {
+            const taskComments = await getTaskComments(task.id);
+            setComments(taskComments || []);
+          }
+        };
+        addCommentAsync();
         }
-      }
       setComment('');
     }
   };

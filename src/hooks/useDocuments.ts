@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Document, DocumentTemplate } from '../types/Document';
-import { db } from '../lib/database';
+import { supabase, Document, DocumentTemplate } from '../lib/supabase';
 import { useAuth } from './useAuth';
 
 interface DocumentWithProject extends Document {
   projectTitle: string;
   projectColor: string;
   templateName: string;
+  createdByName: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface DocumentTemplateWithDates extends DocumentTemplate {
   createdAt: Date;
   updatedAt: Date;
 }
@@ -14,8 +19,9 @@ interface DocumentWithProject extends Document {
 export const useDocuments = (projects: any[]) => {
   const { user } = useAuth();
   const [documents, setDocuments] = useState<DocumentWithProject[]>([]);
-  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [templates, setTemplates] = useState<DocumentTemplateWithDates[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -24,128 +30,219 @@ export const useDocuments = (projects: any[]) => {
     }
   }, [user, projects]);
 
-  const loadDocuments = () => {
+  const loadDocuments = async () => {
     if (!user) return;
 
     try {
-      const dbDocuments = db.getDocuments(user.id);
-      const dbTemplates = db.getDocumentTemplates();
-      
-      const documentsWithProject: DocumentWithProject[] = dbDocuments.map(doc => {
-        const project = projects.find(p => p.id === doc.project_id);
-        const template = dbTemplates.find(t => t.id === doc.template_id);
-        
-        return {
-          ...doc,
-          projectTitle: project?.title || 'Неизвестный проект',
-          projectColor: project?.color || '#3B82F6',
-          templateName: template?.title || 'Без шаблона',
-          createdAt: new Date(doc.created_at),
-          updatedAt: new Date(doc.updated_at)
-        };
-      });
+      setLoading(true);
+      setError(null);
+
+      const { data: documentsData, error: documentsError } = await supabase
+        .from('documents')
+        .select(`
+          *,
+          project:projects (
+            title,
+            color
+          ),
+          template:document_templates (
+            title
+          ),
+          creator:profiles!documents_created_by_fkey (
+            full_name
+          )
+        `)
+        .eq('created_by', user.id)
+        .order('updated_at', { ascending: false });
+
+      if (documentsError) throw documentsError;
+
+      const documentsWithProject: DocumentWithProject[] = (documentsData || []).map(doc => ({
+        ...doc,
+        projectTitle: doc.project?.title || 'Неизвестный проект',
+        projectColor: doc.project?.color || '#3B82F6',
+        templateName: doc.template?.title || 'Без шаблона',
+        createdByName: doc.creator?.full_name || 'Неизвестно',
+        createdAt: new Date(doc.created_at),
+        updatedAt: new Date(doc.updated_at)
+      }));
 
       setDocuments(documentsWithProject);
-    } catch (error) {
-      console.error('Error loading documents:', error);
+    } catch (err) {
+      console.error('Error loading documents:', err);
+      setError(err instanceof Error ? err.message : 'Error loading documents');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadTemplates = () => {
+  const loadTemplates = async () => {
     try {
-      const dbTemplates = db.getDocumentTemplates();
-      const templatesWithDates = dbTemplates.map(template => ({
+      const { data: templatesData, error } = await supabase
+        .from('document_templates')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const templatesWithDates = (templatesData || []).map(template => ({
         ...template,
         createdAt: new Date(template.created_at),
         updatedAt: new Date(template.updated_at)
       }));
+
       setTemplates(templatesWithDates);
-    } catch (error) {
-      console.error('Error loading templates:', error);
+    } catch (err) {
+      console.error('Error loading templates:', err);
     }
   };
 
-  const createDocument = (documentData: Omit<DocumentWithProject, 'id' | 'createdAt' | 'updatedAt' | 'projectTitle' | 'projectColor' | 'templateName'>) => {
+  const createDocument = async (documentData: any) => {
     if (!user) return;
 
-    const newDocument = db.createDocument({
-      title: documentData.title,
-      description: documentData.description,
-      template_id: documentData.template_id,
-      project_id: documentData.project_id,
-      created_by: user.id,
-      status: documentData.status,
-      counterparty: documentData.counterparty,
-      template_fields: documentData.template_fields,
-      file_url: documentData.file_url
-    }, user.id);
+    try {
+      const { data: newDocument, error } = await supabase
+        .from('documents')
+        .insert({
+          title: documentData.title,
+          description: documentData.description,
+          template_id: documentData.templateId,
+          project_id: documentData.projectId,
+          created_by: user.id,
+          status: documentData.status || 'draft',
+          counterparty: documentData.counterparty,
+          template_fields: documentData.templateFields,
+          file_url: documentData.fileUrl
+        })
+        .select()
+        .single();
 
-    if (newDocument) {
-      loadDocuments(); // Перезагружаем документы
-    }
-    return newDocument;
-  };
+      if (error) throw error;
 
-  const updateDocument = (documentId: string, updates: Partial<DocumentWithProject>) => {
-    if (!user) return;
-
-    const dbUpdates: Partial<Document> = {
-      title: updates.title,
-      description: updates.description,
-      status: updates.status,
-      counterparty: updates.counterparty,
-      template_fields: updates.template_fields,
-      file_url: updates.file_url
-    };
-
-    const updated = db.updateDocument(documentId, dbUpdates, user.id);
-    if (updated) {
-      loadDocuments(); // Перезагружаем документы
+      await loadDocuments();
+      return newDocument;
+    } catch (err) {
+      console.error('Error creating document:', err);
+      setError(err instanceof Error ? err.message : 'Error creating document');
     }
   };
 
-  const deleteDocument = (documentId: string) => {
+  const updateDocument = async (documentId: string, updates: any) => {
     if (!user) return;
 
-    const deleted = db.deleteDocument(documentId, user.id);
-    if (deleted) {
+    try {
+      const { data: updatedDocument, error } = await supabase
+        .from('documents')
+        .update({
+          title: updates.title,
+          description: updates.description,
+          status: updates.status,
+          counterparty: updates.counterparty,
+          template_fields: updates.templateFields,
+          file_url: updates.fileUrl
+        })
+        .eq('id', documentId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await loadDocuments();
+    } catch (err) {
+      console.error('Error updating document:', err);
+      setError(err instanceof Error ? err.message : 'Error updating document');
+    }
+  };
+
+  const deleteDocument = async (documentId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', documentId);
+
+      if (error) throw error;
+
       setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+    } catch (err) {
+      console.error('Error deleting document:', err);
+      setError(err instanceof Error ? err.message : 'Error deleting document');
     }
   };
 
-  const createTemplate = (templateData: Omit<DocumentTemplate, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newTemplate = db.createDocumentTemplate({
-      title: templateData.title,
-      description: templateData.description,
-      category: templateData.category,
-      content: templateData.content,
-      fields: templateData.fields,
-      is_custom: templateData.isCustom,
-      created_by: user?.id
-    });
+  const createTemplate = async (templateData: any) => {
+    if (!user) return;
 
-    if (newTemplate) {
-      loadTemplates(); // Перезагружаем шаблоны
+    try {
+      const { data: newTemplate, error } = await supabase
+        .from('document_templates')
+        .insert({
+          title: templateData.title,
+          description: templateData.description,
+          category: templateData.category,
+          content: templateData.content,
+          fields: templateData.fields,
+          is_custom: templateData.isCustom,
+          created_by: user.id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await loadTemplates();
+      return newTemplate;
+    } catch (err) {
+      console.error('Error creating template:', err);
+      setError(err instanceof Error ? err.message : 'Error creating template');
     }
-    return newTemplate;
   };
 
-  const updateTemplate = (templateId: string, updates: Partial<DocumentTemplate>) => {
-    // Для упрощения пока не реализуем
-    console.log('Update template:', templateId, updates);
+  const updateTemplate = async (templateId: string, updates: any) => {
+    if (!user) return;
+
+    try {
+      const { data: updatedTemplate, error } = await supabase
+        .from('document_templates')
+        .update(updates)
+        .eq('id', templateId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await loadTemplates();
+    } catch (err) {
+      console.error('Error updating template:', err);
+      setError(err instanceof Error ? err.message : 'Error updating template');
+    }
   };
 
-  const deleteTemplate = (templateId: string) => {
-    // Для упрощения пока не реализуем
-    console.log('Delete template:', templateId);
+  const deleteTemplate = async (templateId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('document_templates')
+        .delete()
+        .eq('id', templateId);
+
+      if (error) throw error;
+
+      setTemplates(prev => prev.filter(template => template.id !== templateId));
+    } catch (err) {
+      console.error('Error deleting template:', err);
+      setError(err instanceof Error ? err.message : 'Error deleting template');
+    }
   };
 
   return {
     documents,
     templates,
     loading,
+    error,
     createDocument,
     updateDocument,
     deleteDocument,

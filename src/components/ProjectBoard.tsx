@@ -42,7 +42,7 @@ interface ProjectBoardProps {
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
   onDeleteTask: (taskId: string) => void;
   onAddComment: (taskId: string, content: string) => void;
-  getTaskComments: (taskId: string) => any[];
+  getTaskComments: (taskId: string) => Promise<any[]>;
 }
 
 export const ProjectBoard: React.FC<ProjectBoardProps> = ({ 
@@ -258,10 +258,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
       <InviteUserModal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
-        onInvite={(userData) => {
-          // Логика приглашения пользователя
-          console.log('Inviting user:', userData);
-        }}
+        project={project}
       />
 
       <AccessSettingsModal

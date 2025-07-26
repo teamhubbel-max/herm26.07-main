@@ -1,81 +1,100 @@
 import { useState, useEffect } from 'react';
-import { db, User } from '../lib/database';
-
-interface Session {
-  user: User;
-  access_token: string;
-  refresh_token: string;
-}
+import { supabase, Profile } from '../lib/supabase';
+import { User } from '@supabase/supabase-js';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initAuth = () => {
+    // Get initial session
+    const getInitialSession = async () => {
       try {
-        // Проверяем сохраненную сессию
-        const savedSession = localStorage.getItem('hermes-session');
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (savedSession) {
-          const sessionData = JSON.parse(savedSession);
-          
-          // Проверяем существует ли пользователь в базе
-          const userData = db.getUserByEmail(sessionData.user.email);
-          if (userData) {
-            sessionData.user = userData; // Обновляем данные пользователя
-          }
-          
-          setSession(sessionData);
-          setUser(sessionData.user);
+        if (session?.user) {
+          setUser(session.user);
+          await loadProfile(session.user.id);
         }
       } catch (err) {
-        console.error('Error loading session:', err);
-        // Очищаем поврежденные данные
-        localStorage.removeItem('hermes-session');
+        console.error('Error getting session:', err);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
-    initAuth();
+    getInitialSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await loadProfile(session.user.id);
+        } else {
+          setProfile(null);
+        }
+        
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const loadProfile = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error && error.code === 'PGRST116') {
+        // Profile doesn't exist, create one
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: user?.email || '',
+            full_name: user?.user_metadata?.full_name || '',
+            avatar_url: user?.user_metadata?.avatar_url
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        setProfile(newProfile);
+      } else if (error) {
+        throw error;
+      } else {
+        setProfile(profile);
+      }
+    } catch (err) {
+      console.error('Error loading profile:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  };
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
       setLoading(true);
       setError(null);
 
-      // Проверяем не существует ли уже пользователь в базе
-      const userExists = db.getUserByEmail(email);
-      
-      if (userExists) {
-        throw new Error('Пользователь с таким email уже существует');
-      }
-
-      // Создаем нового пользователя в базе
-      const newUser = db.createUser({
+      const { data, error } = await supabase.auth.signUp({
         email,
-        full_name: fullName,
-        role: 'member',
-        avatar_url: undefined
+        password,
+        options: {
+          data: {
+            full_name: fullName
+          }
+        }
       });
 
-      const newSession: Session = {
-        user: newUser,
-        access_token: crypto.randomUUID(),
-        refresh_token: crypto.randomUUID()
-      };
-
-      // Сохраняем сессию
-      localStorage.setItem('hermes-session', JSON.stringify(newSession));
-
-      setUser(newUser);
-      setSession(newSession);
-
-      return { data: { user: newUser, session: newSession }, error: null };
+      return { data, error };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка регистрации';
       setError(errorMessage);
@@ -90,29 +109,12 @@ export const useAuth = () => {
       setLoading(true);
       setError(null);
 
-      // Проверяем существует ли пользователь в базе
-      const foundUser = db.getUserByEmail(email);
-      
-      if (!foundUser) {
-        throw new Error('Пользователь не найден');
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-      // В реальном приложении здесь была бы проверка пароля
-      // Для демо принимаем любой пароль
-
-      const newSession: Session = {
-        user: foundUser,
-        access_token: crypto.randomUUID(),
-        refresh_token: crypto.randomUUID()
-      };
-
-      // Сохраняем сессию
-      localStorage.setItem('hermes-session', JSON.stringify(newSession));
-
-      setUser(foundUser);
-      setSession(newSession);
-
-      return { data: { user: foundUser, session: newSession }, error: null };
+      return { data, error };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка входа';
       setError(errorMessage);
@@ -124,43 +126,31 @@ export const useAuth = () => {
 
   const signOut = async () => {
     try {
-      // Очищаем данные пользователя
-      if (user) {
-        db.clearUserData(user.id);
-      }
-      
-      localStorage.removeItem('hermes-session');
-      
-      setUser(null);
-      setSession(null);
-      setError(null);
-
-      return { error: null };
+      const { error } = await supabase.auth.signOut();
+      return { error };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка выхода';
       return { error: { message: errorMessage } };
     }
   };
 
-  const updateProfile = async (updates: Partial<User>) => {
+  const updateProfile = async (updates: Partial<Profile>) => {
     try {
       if (!user) {
         return { error: new Error('Пользователь не авторизован') };
       }
 
-      const updatedUser = db.updateUser(user.id, updates);
-      if (!updatedUser) {
-        return { error: new Error('Ошибка обновления профиля') };
-      }
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id)
+        .select()
+        .single();
 
-      setUser(updatedUser);
-      
-      // Обновляем сессию
-      const newSession = { ...session!, user: updatedUser };
-      setSession(newSession);
-      localStorage.setItem('hermes-session', JSON.stringify(newSession));
+      if (error) throw error;
 
-      return { data: updatedUser, error: null };
+      setProfile(data);
+      return { data, error: null };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка обновления профиля';
       return { data: null, error: { message: errorMessage } };
@@ -169,8 +159,7 @@ export const useAuth = () => {
 
   return {
     user,
-    profile: user, // Для совместимости с существующим кодом
-    session,
+    profile,
     loading,
     error,
     isSupabaseConfigured: true,

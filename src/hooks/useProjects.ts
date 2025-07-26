@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Project } from '../types/Project';
-import { db } from '../lib/database';
+import { supabase, Project, ProjectMember } from '../lib/supabase';
 import { useAuth } from './useAuth';
 
 export interface ProjectWithStats extends Project {
@@ -8,6 +7,7 @@ export interface ProjectWithStats extends Project {
   tasksCount: number;
   completedTasks: number;
   progress: number;
+  role: 'owner' | 'member' | 'observer';
   owner: {
     name: string;
     avatar?: string;
@@ -20,17 +20,21 @@ export interface ProjectWithStats extends Project {
 }
 
 export const useProjects = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
       loadProjects();
+    } else {
+      setProjects([]);
+      setLoading(false);
     }
   }, [user]);
 
-  const loadProjects = () => {
+  const loadProjects = async () => {
     if (!user) {
       setProjects([]);
       setLoading(false);
@@ -38,118 +42,197 @@ export const useProjects = () => {
     }
 
     try {
-      const dbProjects = db.getProjects(user.id);
-      const projectsWithStats: ProjectWithStats[] = dbProjects.map(project => {
-        const tasks = db.getTasksByProject(project.id, user.id);
-        const completedTasks = tasks.filter(t => t.status === 'done').length;
-        const progress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+      setLoading(true);
+      setError(null);
 
-        return {
-          ...project,
-          role: 'owner' as const, // Упрощаем для демо
-          createdAt: new Date(project.created_at),
-          updatedAt: new Date(project.updated_at),
-          lastActivity: new Date(project.last_activity),
-          hasNotifications: false,
-          membersCount: 1,
-          tasksCount: tasks.length,
-          completedTasks,
-          progress,
-          color: project.color,
-          owner: {
-            name: user.full_name,
-            avatar: user.avatar_url
-          },
-          members: [{
-            id: user.id,
-            name: user.full_name,
-            avatar: user.avatar_url
-          }]
-        };
-      });
+      // Get projects where user is a member
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select(`
+          *,
+          project_members!inner (
+            role,
+            user_id,
+            profile:profiles (
+              id,
+              full_name,
+              avatar_url
+            )
+          ),
+          owner:profiles!projects_owner_id_fkey (
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('project_members.user_id', user.id);
+
+      if (projectsError) throw projectsError;
+
+      // Get task statistics for each project
+      const projectsWithStats = await Promise.all(
+        (projectsData || []).map(async (project) => {
+          const { data: tasksData } = await supabase
+            .from('tasks')
+            .select('id, status')
+            .eq('project_id', project.id);
+
+          const tasksCount = tasksData?.length || 0;
+          const completedTasksCount = tasksData?.filter(t => t.status === 'done').length || 0;
+          const progress = tasksCount > 0 ? Math.round((completedTasksCount / tasksCount) * 100) : 0;
+
+          // Get user's role in this project
+          const userMember = project.project_members.find((member: any) => member.user_id === user.id);
+          const userRole = userMember?.role || 'member';
+
+          // Get all members
+          const members = project.project_members.map((member: any) => ({
+            id: member.profile.id,
+            name: member.profile.full_name,
+            avatar: member.profile.avatar_url
+          }));
+
+          return {
+            ...project,
+            role: userRole,
+            createdAt: new Date(project.created_at),
+            updatedAt: new Date(project.updated_at),
+            lastActivity: new Date(project.last_activity),
+            hasNotifications: false,
+            membersCount: project.project_members.length,
+            tasksCount,
+            completedTasks: completedTasksCount,
+            progress,
+            owner: {
+              name: project.owner.full_name,
+              avatar: project.owner.avatar_url
+            },
+            members
+          };
+        })
+      );
 
       setProjects(projectsWithStats);
-    } catch (error) {
-      console.error('Error loading projects:', error);
+    } catch (err) {
+      console.error('Error loading projects:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
   };
 
-  const createProject = (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const createProject = async (projectData: any) => {
     if (!user) return null;
 
-    const newProject = db.createProject({
-      title: projectData.title,
-      description: projectData.description,
-      color: projectData.color,
-      status: projectData.status,
-      owner_id: user.id
-    }, user.id);
+    try {
+      // Create project
+      const { data: project, error: projectError } = await supabase
+        .from('projects')
+        .insert({
+          title: projectData.title,
+          description: projectData.description,
+          color: projectData.color,
+          status: projectData.status,
+          owner_id: user.id
+        })
+        .select()
+        .single();
 
-    // Создаем ProjectWithStats объект
-    const projectWithStats: ProjectWithStats = {
-      ...newProject,
-      role: 'owner' as const,
-      createdAt: new Date(newProject.created_at),
-      updatedAt: new Date(newProject.updated_at),
-      lastActivity: new Date(newProject.last_activity),
-      hasNotifications: false,
-      membersCount: 1,
-      tasksCount: 0,
-      completedTasks: 0,
-      progress: 0,
-      owner: {
-        name: user.full_name,
-        avatar: user.avatar_url
-      },
-      members: [{
-        id: user.id,
-        name: user.full_name,
-        avatar: user.avatar_url
-      }]
-    };
+      if (projectError) throw projectError;
 
-    setProjects(prev => [projectWithStats, ...prev]);
-    return projectWithStats;
-  };
+      // Add creator as owner
+      const { error: memberError } = await supabase
+        .from('project_members')
+        .insert({
+          project_id: project.id,
+          user_id: user.id,
+          role: 'owner'
+        });
 
-  const updateProject = (projectId: string, updates: Partial<Project>) => {
-    if (!user) return;
+      if (memberError) throw memberError;
 
-    const updated = db.updateProject(projectId, {
-      title: updates.title,
-      description: updates.description,
-      color: updates.color,
-      status: updates.status
-    }, user.id);
+      // Reload projects
+      await loadProjects();
 
-    if (updated) {
-      loadProjects(); // Перезагружаем для обновления статистики
+      return project;
+    } catch (err) {
+      console.error('Error creating project:', err);
+      setError(err instanceof Error ? err.message : 'Error creating project');
+      return null;
     }
   };
 
-  const archiveProject = (projectId: string) => {
-    updateProject(projectId, { status: 'archived' });
-  };
-
-  const deleteProject = (projectId: string) => {
+  const updateProject = async (projectId: string, updates: any) => {
     if (!user) return;
 
-    const deleted = db.deleteProject(projectId, user.id);
-    if (deleted) {
+    try {
+      const { data: updatedProject, error } = await supabase
+        .from('projects')
+        .update({
+          title: updates.title,
+          description: updates.description,
+          color: updates.color,
+          status: updates.status,
+          last_activity: new Date().toISOString()
+        })
+        .eq('id', projectId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Reload projects to get updated stats
+      await loadProjects();
+    } catch (err) {
+      console.error('Error updating project:', err);
+      setError(err instanceof Error ? err.message : 'Error updating project');
+    }
+  };
+
+  const archiveProject = async (projectId: string) => {
+    await updateProject(projectId, { status: 'archived' });
+  };
+
+  const deleteProject = async (projectId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) throw error;
+
       setProjects(prev => prev.filter(project => project.id !== projectId));
+    } catch (err) {
+      console.error('Error deleting project:', err);
+      setError(err instanceof Error ? err.message : 'Error deleting project');
     }
   };
 
-  const leaveProject = (projectId: string) => {
-    // Для демо просто удаляем проект
-    deleteProject(projectId);
+  const leaveProject = async (projectId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('project_members')
+        .delete()
+        .eq('project_id', projectId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setProjects(prev => prev.filter(project => project.id !== projectId));
+    } catch (err) {
+      console.error('Error leaving project:', err);
+      setError(err instanceof Error ? err.message : 'Error leaving project');
+    }
   };
 
   return {
     projects,
     loading,
+    error,
     createProject,
     updateProject,
     archiveProject,

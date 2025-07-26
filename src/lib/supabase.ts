@@ -1,42 +1,38 @@
-// Заглушка для совместимости с существующим кодом
-// В данной версии используется локальная авторизация
-export const isSupabaseConfigured = true;
-export const supabase = null;
+import { createClient } from '@supabase/supabase-js';
+import { Database } from './database.types';
 
-// Типы для совместимости
-export interface Profile {
-  id: string;
-  email: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  role: string;
-  created_at: string;
-  updated_at: string;
-}
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export interface Project {
-  id: string;
-  title: string;
-  description: string;
-  color: string;
-  status: string;
-  owner_id: string;
-  created_at: string;
-  updated_at: string;
-  last_activity: string;
-}
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: string;
-  category: string;
-  project_id: string;
-  assignee_id: string | null;
-  created_by: string;
-  due_date: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+
+// Types
+export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type Project = Database['public']['Tables']['projects']['Row'];
+export type Task = Database['public']['Tables']['tasks']['Row'];
+export type TaskComment = Database['public']['Tables']['task_comments']['Row'];
+export type Document = Database['public']['Tables']['documents']['Row'];
+export type DocumentTemplate = Database['public']['Tables']['document_templates']['Row'];
+export type ProjectMember = Database['public']['Tables']['project_members']['Row'];
+export type ActivityLog = Database['public']['Tables']['activity_logs']['Row'];
+
+// Helper functions
+export const getCurrentUser = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+};
+
+export const getCurrentProfile = async () => {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+    
+  return profile;
+};
