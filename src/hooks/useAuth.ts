@@ -1,14 +1,29 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
+import { db } from '../lib/database';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
 
   useEffect(() => {
+    // Проверяем, настроен ли Supabase
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.log('Supabase not configured, using local database');
+      setIsSupabaseConfigured(false);
+      setLoading(false);
+      return;
+    }
+    
+    setIsSupabaseConfigured(true);
+    
     // Get initial session
     const getInitialSession = async () => {
       try {
@@ -20,6 +35,7 @@ export const useAuth = () => {
         }
       } catch (err) {
         console.error('Error getting session:', err);
+        setError('Ошибка подключения к серверу');
       } finally {
         setLoading(false);
       }
@@ -44,6 +60,75 @@ export const useAuth = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Локальная аутентификация для демо
+  const localSignIn = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Создаем локального пользователя для демо
+      const localUser = {
+        id: 'demo-user-' + Date.now(),
+        email,
+        user_metadata: { full_name: 'Демо Пользователь' }
+      };
+
+      const localProfile = {
+        id: localUser.id,
+        email: localUser.email,
+        full_name: localUser.user_metadata.full_name,
+        role: 'member',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      setUser(localUser as any);
+      setProfile(localProfile as any);
+      
+      return { data: { user: localUser }, error: null };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка входа';
+      setError(errorMessage);
+      return { data: null, error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const localSignUp = async (email: string, password: string, fullName: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Создаем локального пользователя для демо
+      const localUser = {
+        id: 'demo-user-' + Date.now(),
+        email,
+        user_metadata: { full_name: fullName }
+      };
+
+      const localProfile = {
+        id: localUser.id,
+        email: localUser.email,
+        full_name: fullName,
+        role: 'member',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      setUser(localUser as any);
+      setProfile(localProfile as any);
+      
+      return { data: { user: localUser }, error: null };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка регистрации';
+      setError(errorMessage);
+      return { data: null, error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadProfile = async (userId: string) => {
     try {
@@ -80,6 +165,10 @@ export const useAuth = () => {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
+    if (!isSupabaseConfigured) {
+      return localSignUp(email, password, fullName);
+    }
+    
     try {
       setLoading(true);
       setError(null);
@@ -105,6 +194,10 @@ export const useAuth = () => {
   };
 
   const signIn = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) {
+      return localSignIn(email, password);
+    }
+    
     try {
       setLoading(true);
       setError(null);
@@ -125,6 +218,12 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
+    if (!isSupabaseConfigured) {
+      setUser(null);
+      setProfile(null);
+      return { error: null };
+    }
+    
     try {
       const { error } = await supabase.auth.signOut();
       return { error };
@@ -138,6 +237,13 @@ export const useAuth = () => {
     try {
       if (!user) {
         return { error: new Error('Пользователь не авторизован') };
+      }
+
+      if (!isSupabaseConfigured) {
+        // Обновляем локальный профиль
+        const updatedProfile = { ...profile, ...updates } as Profile;
+        setProfile(updatedProfile);
+        return { data: updatedProfile, error: null };
       }
 
       const { data, error } = await supabase
@@ -162,7 +268,7 @@ export const useAuth = () => {
     profile,
     loading,
     error,
-    isSupabaseConfigured: true,
+    isSupabaseConfigured,
     signUp,
     signIn,
     signOut,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, Task } from '../lib/supabase';
 import { useAuth } from './useAuth';
+import { telegramNotificationService } from '../services/telegramNotifications';
 
 interface BoardColumn {
   id: string;
@@ -23,7 +24,7 @@ interface TaskWithDetails extends Task {
 }
 
 export const useBoard = (projectId?: string) => {
-  const { user, profile } = useAuth();
+  const { user, profile, isSupabaseConfigured } = useAuth();
   const [board, setBoard] = useState<Board>({
     id: projectId || 'default',
     title: 'Доска задач',
@@ -39,13 +40,13 @@ export const useBoard = (projectId?: string) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user && projectId) {
+    if (user && projectId && isSupabaseConfigured) {
       loadTasks();
     }
   }, [user, projectId]);
 
   const loadTasks = async () => {
-    if (!user || !projectId) return;
+    if (!user || !projectId || !isSupabaseConfigured) return;
 
     try {
       setLoading(true);
@@ -88,7 +89,7 @@ export const useBoard = (projectId?: string) => {
   };
 
   const moveTask = async (taskId: string, destinationColumnId: string, destinationIndex: number) => {
-    if (!user) return;
+    if (!user || !isSupabaseConfigured) return;
 
     // Find the task in current board state
     let sourceTask: TaskWithDetails | undefined;
@@ -157,6 +158,15 @@ export const useBoard = (projectId?: string) => {
         .eq('id', taskId);
 
       if (error) throw error;
+      
+      // Отправляем уведомление о завершении задачи
+      if (newStatus === 'done' && sourceTask.assignee && projectId) {
+        await telegramNotificationService.sendTaskCompletedNotification(
+          projectId,
+          sourceTask.title,
+          sourceTask.assignee
+        );
+      }
     } catch (err) {
       console.error('Error updating task status:', err);
       // Revert optimistic update
@@ -165,7 +175,7 @@ export const useBoard = (projectId?: string) => {
   };
 
   const addTask = async (task: Omit<TaskWithDetails, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!user || !projectId) return;
+    if (!user || !projectId || !isSupabaseConfigured) return;
 
     try {
       // Check for assignee if provided
@@ -221,6 +231,23 @@ export const useBoard = (projectId?: string) => {
               : column
           )
         }));
+        
+        // Отправляем уведомление о новой задаче
+        if (assigneeId && projectId) {
+          const { data: projectData } = await supabase
+            .from('projects')
+            .select('title')
+            .eq('id', projectId)
+            .single();
+            
+          if (projectData) {
+            await telegramNotificationService.sendTaskAssignedNotification(
+              assigneeId,
+              task.title,
+              projectData.title
+            );
+          }
+        }
       }
     } catch (err) {
       console.error('Error creating task:', err);
@@ -229,7 +256,7 @@ export const useBoard = (projectId?: string) => {
   };
 
   const updateTask = async (taskId: string, updates: Partial<TaskWithDetails>) => {
-    if (!user) return;
+    if (!user || !isSupabaseConfigured) return;
 
     try {
       let assigneeId = undefined;
@@ -289,6 +316,23 @@ export const useBoard = (projectId?: string) => {
             )
           }))
         }));
+        
+        // Отправляем уведомление о назначении новой задачи
+        if (assigneeId && updates.assignee && projectId) {
+          const { data: projectData } = await supabase
+            .from('projects')
+            .select('title')
+            .eq('id', projectId)
+            .single();
+            
+          if (projectData) {
+            await telegramNotificationService.sendTaskAssignedNotification(
+              assigneeId,
+              updatedTask.title,
+              projectData.title
+            );
+          }
+        }
       }
     } catch (err) {
       console.error('Error updating task:', err);
@@ -297,7 +341,7 @@ export const useBoard = (projectId?: string) => {
   };
 
   const deleteTask = async (taskId: string) => {
-    if (!user) return;
+    if (!user || !isSupabaseConfigured) return;
 
     try {
       const { error } = await supabase
@@ -322,7 +366,7 @@ export const useBoard = (projectId?: string) => {
   };
 
   const addComment = async (taskId: string, content: string) => {
-    if (!user) return;
+    if (!user || !isSupabaseConfigured) return;
 
     try {
       const { data: comment, error } = await supabase
@@ -345,6 +389,8 @@ export const useBoard = (projectId?: string) => {
   };
 
   const getTaskComments = async (taskId: string) => {
+    if (!isSupabaseConfigured) return [];
+    
     try {
       const { data: comments, error } = await supabase
         .from('task_comments')
