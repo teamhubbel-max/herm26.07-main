@@ -1,326 +1,377 @@
-// Локальная база данных для управления всеми данными
+/**
+ * ЛОКАЛЬНАЯ БАЗА ДАННЫХ ДЛЯ TEAMHUB
+ * 
+ * Эта система управляет всеми данными приложения в localStorage браузера.
+ * Каждая таблица имеет четкую структуру и назначение.
+ * 
+ * АРХИТЕКТУРА:
+ * - Все данные хранятся в localStorage с префиксом 'teamhub_'
+ * - Каждый пользователь имеет изолированные данные
+ * - UUID используется для всех ID
+ * - Автоматические timestamps для created_at/updated_at
+ */
+
+// ============================================================================
+// ТИПЫ ДАННЫХ (СХЕМА БАЗЫ ДАННЫХ)
+// ============================================================================
+
+/**
+ * ПОЛЬЗОВАТЕЛЬ
+ * Основная сущность - человек, работающий в системе
+ */
 export interface User {
-  id: string;
-  email: string;
-  full_name: string;
-  avatar_url?: string;
-  role: string;
-  organization_name?: string;
-  organization_inn?: string;
-  organization_address?: string;
-  organization_phone?: string;
-  organization_email?: string;
-  organization_director?: string;
-  created_at: string;
-  updated_at: string;
+  id: string;                    // UUID пользователя
+  email: string;                 // Email для входа (уникальный)
+  full_name: string;            // Отображаемое имя
+  avatar_url?: string;          // Ссылка на аватар (опционально)
+  role: 'owner' | 'admin' | 'member'; // Глобальная роль в системе
+  created_at: string;           // Дата регистрации (ISO string)
+  updated_at: string;           // Дата последнего обновления
 }
 
+/**
+ * ПРОЕКТ
+ * Контейнер для задач и участников
+ */
 export interface Project {
-  id: string;
-  title: string;
-  description: string;
-  color: string;
-  status: 'active' | 'completed' | 'paused' | 'archived';
-  owner_id: string;
-  created_at: string;
-  updated_at: string;
-  last_activity: string;
+  id: string;                   // UUID проекта
+  title: string;                // Название проекта
+  description: string;          // Описание проекта
+  color: string;                // Цвет проекта (hex код)
+  status: 'active' | 'completed' | 'paused' | 'archived'; // Статус проекта
+  owner_id: string;             // ID владельца проекта
+  created_at: string;           // Дата создания
+  updated_at: string;           // Дата обновления
+  last_activity: string;        // Дата последней активности
 }
 
+/**
+ * УЧАСТНИК ПРОЕКТА
+ * Связь между пользователем и проектом с ролью
+ */
 export interface ProjectMember {
-  id: string;
-  project_id: string;
-  user_id: string;
-  role: 'owner' | 'member' | 'observer';
-  joined_at: string;
+  id: string;                   // UUID записи
+  project_id: string;           // ID проекта
+  user_id: string;              // ID пользователя
+  role: 'owner' | 'member' | 'observer'; // Роль в проекте
+  joined_at: string;            // Дата присоединения
 }
 
-export interface ProjectInvitation {
-  id: string;
-  project_id: string;
-  inviter_id: string;
-  invitee_email: string;
-  role: 'member' | 'observer';
-  status: 'pending' | 'accepted' | 'rejected';
-  message?: string;
-  created_at: string;
-  expires_at: string;
+/**
+ * ЗАДАЧА
+ * Основная единица работы в проекте
+ */
+export interface Task {
+  id: string;                   // UUID задачи
+  title: string;                // Название задачи
+  description: string;          // Подробное описание
+  status: 'todo' | 'inprogress' | 'inprogress2' | 'done'; // Статус выполнения
+  priority: 'low' | 'medium' | 'high'; // Приоритет
+  category: string;             // Категория (Фронтенд, Бэкенд, и т.д.)
+  project_id: string;           // ID проекта
+  assignee_id?: string;         // ID исполнителя (опционально)
+  created_by: string;           // ID создателя
+  due_date?: string;            // Дедлайн (ISO string, опционально)
+  created_at: string;           // Дата создания
+  updated_at: string;           // Дата обновления
 }
 
+/**
+ * КОММЕНТАРИЙ К ЗАДАЧЕ
+ * Обсуждение и заметки по задаче
+ */
+export interface TaskComment {
+  id: string;                   // UUID комментария
+  task_id: string;              // ID задачи
+  user_id: string;              // ID автора комментария
+  content: string;              // Текст комментария
+  created_at: string;           // Дата создания
+  updated_at: string;           // Дата обновления
+}
+
+/**
+ * ДОКУМЕНТ
+ * Файлы и документы проекта
+ */
+export interface Document {
+  id: string;                   // UUID документа
+  title: string;                // Название документа
+  description: string;          // Описание документа
+  template_id?: string;         // ID шаблона (опционально)
+  project_id: string;           // ID проекта
+  created_by: string;           // ID создателя
+  status: 'draft' | 'completed' | 'sent'; // Статус документа
+  counterparty?: any;           // Данные контрагента (JSON)
+  template_fields?: any;        // Поля шаблона (JSON)
+  file_url?: string;            // Ссылка на файл (опционально)
+  created_at: string;           // Дата создания
+  updated_at: string;           // Дата обновления
+}
+
+/**
+ * ШАБЛОН ДОКУМЕНТА
+ * Заготовки для создания документов
+ */
+export interface DocumentTemplate {
+  id: string;                   // UUID шаблона
+  title: string;                // Название шаблона
+  description: string;          // Описание шаблона
+  category: string;             // Категория (Договоры, Отчеты, и т.д.)
+  content: string;              // HTML содержимое шаблона
+  fields: any[];                // Динамические поля (JSON массив)
+  is_custom: boolean;           // Пользовательский или системный
+  created_by?: string;          // ID создателя (для пользовательских)
+  created_at: string;           // Дата создания
+  updated_at: string;           // Дата обновления
+}
+
+/**
+ * ЛОГ АКТИВНОСТИ
+ * История действий в проекте
+ */
+export interface ActivityLog {
+  id: string;                   // UUID записи
+  project_id: string;           // ID проекта
+  user_id: string;              // ID пользователя
+  action: string;               // Действие (create, update, delete, comment)
+  entity_type: string;          // Тип сущности (task, project, document)
+  entity_id: string;            // ID сущности
+  details: any;                 // Детали действия (JSON)
+  created_at: string;           // Дата действия
+}
+
+/**
+ * НАСТРОЙКИ ПОЛЬЗОВАТЕЛЯ
+ * Персональные настройки и предпочтения
+ */
 export interface UserSettings {
-  id: string;
-  user_id: string;
-  notifications: {
+  id: string;                   // UUID настроек
+  user_id: string;              // ID пользователя
+  notifications: {              // Настройки уведомлений
     taskUpdates: boolean;
     deadlineReminders: boolean;
     teamActivity: boolean;
     emailNotifications: boolean;
-    telegramNotifications: boolean;
   };
-  appearance: {
+  appearance: {                 // Настройки внешнего вида
     theme: 'light' | 'dark' | 'system';
     language: string;
     compactView: boolean;
   };
-  telegram: {
-    username?: string;
-    chat_id?: string;
-    connected: boolean;
-  };
-  created_at: string;
-  updated_at: string;
+  created_at: string;           // Дата создания
+  updated_at: string;           // Дата обновления
 }
 
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: 'todo' | 'inprogress' | 'inprogress2' | 'done';
-  priority: 'low' | 'medium' | 'high';
-  category: string;
-  project_id: string;
-  assignee_id?: string;
-  created_by: string;
-  due_date?: string;
-  created_at: string;
-  updated_at: string;
-}
+// ============================================================================
+// КЛАСС УПРАВЛЕНИЯ БАЗОЙ ДАННЫХ
+// ============================================================================
 
-export interface TaskComment {
-  id: string;
-  task_id: string;
-  user_id: string;
-  content: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Document {
-  id: string;
-  title: string;
-  description: string;
-  template_id?: string;
-  project_id: string;
-  created_by: string;
-  status: 'draft' | 'completed' | 'sent';
-  counterparty?: any;
-  template_fields?: any;
-  file_url?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DocumentTemplate {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  content: string;
-  fields: any[];
-  is_custom: boolean;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ActivityLog {
-  id: string;
-  project_id: string;
-  user_id: string;
-  action: string;
-  entity_type: string;
-  entity_id: string;
-  details: any;
-  created_at: string;
-}
-
+/**
+ * ЛОКАЛЬНАЯ БАЗА ДАННЫХ
+ * 
+ * Управляет всеми операциями с данными в localStorage.
+ * Каждый метод четко документирован и имеет единую логику.
+ */
 class LocalDatabase {
+  
+  // --------------------------------------------------------------------------
+  // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
+  // --------------------------------------------------------------------------
+  
+  /**
+   * Генерирует ключ для localStorage
+   * Формат: teamhub_{таблица}_{userId}
+   */
   private getKey(table: string, userId?: string): string {
-    return userId ? `hermes_${table}_${userId}` : `hermes_${table}`;
+    return userId ? `teamhub_${table}_${userId}` : `teamhub_${table}`;
   }
 
+  /**
+   * Загружает данные из localStorage
+   * Возвращает пустой массив при ошибке
+   */
   private getData<T>(table: string, userId?: string): T[] {
     try {
       const key = this.getKey(table, userId);
       const data = localStorage.getItem(key);
       return data ? JSON.parse(data) : [];
     } catch (error) {
-      console.error(`Error loading ${table}:`, error);
+      console.error(`❌ Ошибка загрузки ${table}:`, error);
       return [];
     }
   }
 
+  /**
+   * Сохраняет данные в localStorage
+   * Логирует ошибки без прерывания работы
+   */
   private setData<T>(table: string, data: T[], userId?: string): void {
     try {
       const key = this.getKey(table, userId);
       localStorage.setItem(key, JSON.stringify(data));
+      console.log(`✅ Сохранено в ${table}:`, data.length, 'записей');
     } catch (error) {
-      console.error(`Error saving ${table}:`, error);
+      console.error(`❌ Ошибка сохранения ${table}:`, error);
     }
   }
 
-  // Project Invitations
-  getProjectInvitations(userId: string): ProjectInvitation[] {
-    return this.getData<ProjectInvitation>('project_invitations', userId);
+  /**
+   * Генерирует текущую дату в ISO формате
+   */
+  private now(): string {
+    return new Date().toISOString();
   }
 
-  createProjectInvitation(invitation: Omit<ProjectInvitation, 'id' | 'created_at' | 'expires_at'>, userId: string): ProjectInvitation {
-    const invitations = this.getProjectInvitations(userId);
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
-    
-    const newInvitation: ProjectInvitation = {
-      ...invitation,
-      id: crypto.randomUUID(),
-      created_at: now.toISOString(),
-      expires_at: expiresAt.toISOString()
-    };
-    
-    invitations.push(newInvitation);
-    this.setData('project_invitations', invitations, userId);
-    return newInvitation;
+  /**
+   * Генерирует уникальный UUID
+   */
+  private generateId(): string {
+    return crypto.randomUUID();
   }
 
-  updateProjectInvitation(invitationId: string, updates: Partial<ProjectInvitation>, userId: string): ProjectInvitation | null {
-    const invitations = this.getProjectInvitations(userId);
-    const index = invitations.findIndex(i => i.id === invitationId);
-    if (index === -1) return null;
+  // --------------------------------------------------------------------------
+  // УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
+  // --------------------------------------------------------------------------
 
-    invitations[index] = { ...invitations[index], ...updates };
-    this.setData('project_invitations', invitations, userId);
-    return invitations[index];
-  }
-
-  // User Settings
-  getUserSettings(userId: string): UserSettings | null {
-    const settings = this.getData<UserSettings>('user_settings', userId);
-    return settings.length > 0 ? settings[0] : null;
-  }
-
-  createUserSettings(userId: string): UserSettings {
-    const settings = this.getData<UserSettings>('user_settings', userId);
-    if (settings.length > 0) return settings[0];
-
-    const newSettings: UserSettings = {
-      id: crypto.randomUUID(),
-      user_id: userId,
-      notifications: {
-        taskUpdates: true,
-        deadlineReminders: true,
-        teamActivity: false,
-        emailNotifications: true,
-        telegramNotifications: false
-      },
-      appearance: {
-        theme: 'light',
-        language: 'ru',
-        compactView: false
-      },
-      telegram: {
-        connected: false
-      },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    this.setData('user_settings', [newSettings], userId);
-    return newSettings;
-  }
-
-  updateUserSettings(userId: string, updates: Partial<UserSettings>): UserSettings | null {
-    const settings = this.getUserSettings(userId) || this.createUserSettings(userId);
-    const updatedSettings = { 
-      ...settings, 
-      ...updates, 
-      updated_at: new Date().toISOString() 
-    };
-    
-    this.setData('user_settings', [updatedSettings], userId);
-    return updatedSettings;
-  }
-
-  // Users
+  /**
+   * Получить всех пользователей
+   */
   getUsers(): User[] {
     return this.getData<User>('users');
   }
 
-  createUser(user: Omit<User, 'id' | 'created_at' | 'updated_at'>): User {
+  /**
+   * Создать нового пользователя
+   */
+  createUser(userData: Omit<User, 'id' | 'created_at' | 'updated_at'>): User {
     const users = this.getUsers();
-    const now = new Date().toISOString();
+    const now = this.now();
+    
     const newUser: User = {
-      ...user,
-      id: crypto.randomUUID(),
+      ...userData,
+      id: this.generateId(),
       created_at: now,
       updated_at: now
     };
+    
     users.push(newUser);
     this.setData('users', users);
+    
+    console.log('👤 Создан пользователь:', newUser.email);
     return newUser;
   }
 
+  /**
+   * Найти пользователя по email
+   */
   getUserByEmail(email: string): User | undefined {
     return this.getUsers().find(u => u.email === email);
   }
 
+  /**
+   * Обновить данные пользователя
+   */
   updateUser(userId: string, updates: Partial<User>): User | null {
     const users = this.getUsers();
     const index = users.findIndex(u => u.id === userId);
-    if (index === -1) return null;
+    
+    if (index === -1) {
+      console.warn('⚠️ Пользователь не найден:', userId);
+      return null;
+    }
 
-    users[index] = { ...users[index], ...updates, updated_at: new Date().toISOString() };
+    users[index] = { 
+      ...users[index], 
+      ...updates, 
+      updated_at: this.now() 
+    };
+    
     this.setData('users', users);
+    console.log('👤 Обновлен пользователь:', userId);
     return users[index];
   }
 
-  // Projects
+  // --------------------------------------------------------------------------
+  // УПРАВЛЕНИЕ ПРОЕКТАМИ
+  // --------------------------------------------------------------------------
+
+  /**
+   * Получить проекты пользователя
+   */
   getProjects(userId: string): Project[] {
     return this.getData<Project>('projects', userId);
   }
 
-  createProject(project: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'last_activity'>, userId: string): Project {
+  /**
+   * Создать новый проект
+   */
+  createProject(projectData: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'last_activity'>, userId: string): Project {
     const projects = this.getProjects(userId);
-    const now = new Date().toISOString();
+    const now = this.now();
+    
     const newProject: Project = {
-      ...project,
-      id: crypto.randomUUID(),
+      ...projectData,
+      id: this.generateId(),
       created_at: now,
       updated_at: now,
       last_activity: now
     };
+    
     projects.push(newProject);
     this.setData('projects', projects, userId);
 
-    // Создаем участника проекта (владелец)
+    // Автоматически добавляем создателя как владельца
     this.createProjectMember({
       project_id: newProject.id,
       user_id: userId,
       role: 'owner'
     }, userId);
 
-    this.logActivity(newProject.id, userId, 'create', 'project', newProject.id, { title: newProject.title });
+    this.logActivity(newProject.id, userId, 'create', 'project', newProject.id, { 
+      title: newProject.title 
+    });
+    
+    console.log('📁 Создан проект:', newProject.title);
     return newProject;
   }
 
+  /**
+   * Обновить проект
+   */
   updateProject(projectId: string, updates: Partial<Project>, userId: string): Project | null {
     const projects = this.getProjects(userId);
     const index = projects.findIndex(p => p.id === projectId);
-    if (index === -1) return null;
+    
+    if (index === -1) {
+      console.warn('⚠️ Проект не найден:', projectId);
+      return null;
+    }
 
     projects[index] = { 
       ...projects[index], 
       ...updates, 
-      updated_at: new Date().toISOString(),
-      last_activity: new Date().toISOString()
+      updated_at: this.now(),
+      last_activity: this.now()
     };
+    
     this.setData('projects', projects, userId);
     this.logActivity(projectId, userId, 'update', 'project', projectId, updates);
+    
+    console.log('📁 Обновлен проект:', projectId);
     return projects[index];
   }
 
+  /**
+   * Удалить проект и все связанные данные
+   */
   deleteProject(projectId: string, userId: string): boolean {
     const projects = this.getProjects(userId);
     const filteredProjects = projects.filter(p => p.id !== projectId);
-    if (filteredProjects.length === projects.length) return false;
+    
+    if (filteredProjects.length === projects.length) {
+      console.warn('⚠️ Проект для удаления не найден:', projectId);
+      return false;
+    }
 
     this.setData('projects', filteredProjects, userId);
     
@@ -329,213 +380,449 @@ class LocalDatabase {
     this.deleteProjectTasks(projectId, userId);
     this.deleteProjectDocuments(projectId, userId);
     
+    console.log('🗑️ Удален проект:', projectId);
     return true;
   }
 
-  // Project Members
+  // --------------------------------------------------------------------------
+  // УПРАВЛЕНИЕ УЧАСТНИКАМИ ПРОЕКТОВ
+  // --------------------------------------------------------------------------
+
+  /**
+   * Получить участников проектов пользователя
+   */
   getProjectMembers(userId: string): ProjectMember[] {
     return this.getData<ProjectMember>('project_members', userId);
   }
 
-  createProjectMember(member: Omit<ProjectMember, 'id' | 'joined_at'>, userId: string): ProjectMember {
+  /**
+   * Добавить участника в проект
+   */
+  createProjectMember(memberData: Omit<ProjectMember, 'id' | 'joined_at'>, userId: string): ProjectMember {
     const members = this.getProjectMembers(userId);
+    
     const newMember: ProjectMember = {
-      ...member,
-      id: crypto.randomUUID(),
-      joined_at: new Date().toISOString()
+      ...memberData,
+      id: this.generateId(),
+      joined_at: this.now()
     };
+    
     members.push(newMember);
     this.setData('project_members', members, userId);
+    
+    console.log('👥 Добавлен участник в проект:', memberData.project_id);
     return newMember;
   }
 
+  /**
+   * Удалить всех участников проекта
+   */
   deleteProjectMembers(projectId: string, userId: string): void {
     const members = this.getProjectMembers(userId);
     const filteredMembers = members.filter(m => m.project_id !== projectId);
     this.setData('project_members', filteredMembers, userId);
+    console.log('👥 Удалены участники проекта:', projectId);
   }
 
-  // Tasks
+  // --------------------------------------------------------------------------
+  // УПРАВЛЕНИЕ ЗАДАЧАМИ
+  // --------------------------------------------------------------------------
+
+  /**
+   * Получить все задачи пользователя
+   */
   getTasks(userId: string): Task[] {
     return this.getData<Task>('tasks', userId);
   }
 
+  /**
+   * Получить задачи конкретного проекта
+   */
   getTasksByProject(projectId: string, userId: string): Task[] {
     return this.getTasks(userId).filter(t => t.project_id === projectId);
   }
 
-  createTask(task: Omit<Task, 'id' | 'created_at' | 'updated_at'>, userId: string): Task {
+  /**
+   * Создать новую задачу
+   */
+  createTask(taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>, userId: string): Task {
     const tasks = this.getTasks(userId);
-    const now = new Date().toISOString();
+    const now = this.now();
+    
     const newTask: Task = {
-      ...task,
-      id: crypto.randomUUID(),
+      ...taskData,
+      id: this.generateId(),
       created_at: now,
       updated_at: now
     };
+    
     tasks.push(newTask);
     this.setData('tasks', tasks, userId);
-    this.logActivity(task.project_id, userId, 'create', 'task', newTask.id, { title: newTask.title });
+    
+    this.logActivity(taskData.project_id, userId, 'create', 'task', newTask.id, { 
+      title: newTask.title 
+    });
+    
+    console.log('📋 Создана задача:', newTask.title);
     return newTask;
   }
 
+  /**
+   * Обновить задачу
+   */
   updateTask(taskId: string, updates: Partial<Task>, userId: string): Task | null {
     const tasks = this.getTasks(userId);
     const index = tasks.findIndex(t => t.id === taskId);
-    if (index === -1) return null;
+    
+    if (index === -1) {
+      console.warn('⚠️ Задача не найдена:', taskId);
+      return null;
+    }
 
-    tasks[index] = { ...tasks[index], ...updates, updated_at: new Date().toISOString() };
+    tasks[index] = { 
+      ...tasks[index], 
+      ...updates, 
+      updated_at: this.now() 
+    };
+    
     this.setData('tasks', tasks, userId);
     this.logActivity(tasks[index].project_id, userId, 'update', 'task', taskId, updates);
+    
+    console.log('📋 Обновлена задача:', taskId);
     return tasks[index];
   }
 
+  /**
+   * Удалить задачу
+   */
   deleteTask(taskId: string, userId: string): boolean {
     const tasks = this.getTasks(userId);
     const task = tasks.find(t => t.id === taskId);
-    if (!task) return false;
+    
+    if (!task) {
+      console.warn('⚠️ Задача для удаления не найдена:', taskId);
+      return false;
+    }
 
     const filteredTasks = tasks.filter(t => t.id !== taskId);
     this.setData('tasks', filteredTasks, userId);
+    
     this.deleteTaskComments(taskId, userId);
-    this.logActivity(task.project_id, userId, 'delete', 'task', taskId, { title: task.title });
+    this.logActivity(task.project_id, userId, 'delete', 'task', taskId, { 
+      title: task.title 
+    });
+    
+    console.log('🗑️ Удалена задача:', taskId);
     return true;
   }
 
+  /**
+   * Удалить все задачи проекта
+   */
   deleteProjectTasks(projectId: string, userId: string): void {
     const tasks = this.getTasks(userId);
     const filteredTasks = tasks.filter(t => t.project_id !== projectId);
     this.setData('tasks', filteredTasks, userId);
+    console.log('📋 Удалены задачи проекта:', projectId);
   }
 
-  // Task Comments
+  // --------------------------------------------------------------------------
+  // УПРАВЛЕНИЕ КОММЕНТАРИЯМИ
+  // --------------------------------------------------------------------------
+
+  /**
+   * Получить все комментарии пользователя
+   */
   getTaskComments(userId: string): TaskComment[] {
     return this.getData<TaskComment>('task_comments', userId);
   }
 
+  /**
+   * Получить комментарии конкретной задачи
+   */
   getCommentsByTask(taskId: string, userId: string): TaskComment[] {
     return this.getTaskComments(userId).filter(c => c.task_id === taskId);
   }
 
-  createTaskComment(comment: Omit<TaskComment, 'id' | 'created_at' | 'updated_at'>, userId: string): TaskComment {
+  /**
+   * Создать комментарий к задаче
+   */
+  createTaskComment(commentData: Omit<TaskComment, 'id' | 'created_at' | 'updated_at'>, userId: string): TaskComment {
     const comments = this.getTaskComments(userId);
-    const now = new Date().toISOString();
+    const now = this.now();
+    
     const newComment: TaskComment = {
-      ...comment,
-      id: crypto.randomUUID(),
+      ...commentData,
+      id: this.generateId(),
       created_at: now,
       updated_at: now
     };
+    
     comments.push(newComment);
     this.setData('task_comments', comments, userId);
     
-    // Находим задачу для логирования
-    const task = this.getTasks(userId).find(t => t.id === comment.task_id);
+    // Логируем активность
+    const task = this.getTasks(userId).find(t => t.id === commentData.task_id);
     if (task) {
-      this.logActivity(task.project_id, userId, 'comment', 'task', comment.task_id, { content: comment.content });
+      this.logActivity(task.project_id, userId, 'comment', 'task', commentData.task_id, { 
+        content: commentData.content 
+      });
     }
     
+    console.log('💬 Создан комментарий к задаче:', commentData.task_id);
     return newComment;
   }
 
+  /**
+   * Удалить все комментарии задачи
+   */
   deleteTaskComments(taskId: string, userId: string): void {
     const comments = this.getTaskComments(userId);
     const filteredComments = comments.filter(c => c.task_id !== taskId);
     this.setData('task_comments', filteredComments, userId);
+    console.log('💬 Удалены комментарии задачи:', taskId);
   }
 
-  // Documents
+  // --------------------------------------------------------------------------
+  // УПРАВЛЕНИЕ ДОКУМЕНТАМИ
+  // --------------------------------------------------------------------------
+
+  /**
+   * Получить документы пользователя
+   */
   getDocuments(userId: string): Document[] {
     return this.getData<Document>('documents', userId);
   }
 
-  createDocument(document: Omit<Document, 'id' | 'created_at' | 'updated_at'>, userId: string): Document {
+  /**
+   * Создать новый документ
+   */
+  createDocument(documentData: Omit<Document, 'id' | 'created_at' | 'updated_at'>, userId: string): Document {
     const documents = this.getDocuments(userId);
-    const now = new Date().toISOString();
+    const now = this.now();
+    
     const newDocument: Document = {
-      ...document,
-      id: crypto.randomUUID(),
+      ...documentData,
+      id: this.generateId(),
       created_at: now,
       updated_at: now
     };
+    
     documents.push(newDocument);
     this.setData('documents', documents, userId);
-    this.logActivity(document.project_id, userId, 'create', 'document', newDocument.id, { title: newDocument.title });
+    
+    this.logActivity(documentData.project_id, userId, 'create', 'document', newDocument.id, { 
+      title: newDocument.title 
+    });
+    
+    console.log('📄 Создан документ:', newDocument.title);
     return newDocument;
   }
 
+  /**
+   * Обновить документ
+   */
   updateDocument(documentId: string, updates: Partial<Document>, userId: string): Document | null {
     const documents = this.getDocuments(userId);
     const index = documents.findIndex(d => d.id === documentId);
-    if (index === -1) return null;
+    
+    if (index === -1) {
+      console.warn('⚠️ Документ не найден:', documentId);
+      return null;
+    }
 
-    documents[index] = { ...documents[index], ...updates, updated_at: new Date().toISOString() };
+    documents[index] = { 
+      ...documents[index], 
+      ...updates, 
+      updated_at: this.now() 
+    };
+    
     this.setData('documents', documents, userId);
     this.logActivity(documents[index].project_id, userId, 'update', 'document', documentId, updates);
+    
+    console.log('📄 Обновлен документ:', documentId);
     return documents[index];
   }
 
+  /**
+   * Удалить документ
+   */
   deleteDocument(documentId: string, userId: string): boolean {
     const documents = this.getDocuments(userId);
     const document = documents.find(d => d.id === documentId);
-    if (!document) return false;
+    
+    if (!document) {
+      console.warn('⚠️ Документ для удаления не найден:', documentId);
+      return false;
+    }
 
     const filteredDocuments = documents.filter(d => d.id !== documentId);
     this.setData('documents', filteredDocuments, userId);
-    this.logActivity(document.project_id, userId, 'delete', 'document', documentId, { title: document.title });
+    
+    this.logActivity(document.project_id, userId, 'delete', 'document', documentId, { 
+      title: document.title 
+    });
+    
+    console.log('🗑️ Удален документ:', documentId);
     return true;
   }
 
+  /**
+   * Удалить все документы проекта
+   */
   deleteProjectDocuments(projectId: string, userId: string): void {
     const documents = this.getDocuments(userId);
     const filteredDocuments = documents.filter(d => d.project_id !== projectId);
     this.setData('documents', filteredDocuments, userId);
+    console.log('📄 Удалены документы проекта:', projectId);
   }
 
-  // Document Templates
+  // --------------------------------------------------------------------------
+  // УПРАВЛЕНИЕ ШАБЛОНАМИ ДОКУМЕНТОВ
+  // --------------------------------------------------------------------------
+
+  /**
+   * Получить все шаблоны документов (глобальные)
+   */
   getDocumentTemplates(): DocumentTemplate[] {
     return this.getData<DocumentTemplate>('document_templates');
   }
 
-  createDocumentTemplate(template: Omit<DocumentTemplate, 'id' | 'created_at' | 'updated_at'>): DocumentTemplate {
+  /**
+   * Создать новый шаблон документа
+   */
+  createDocumentTemplate(templateData: Omit<DocumentTemplate, 'id' | 'created_at' | 'updated_at'>): DocumentTemplate {
     const templates = this.getDocumentTemplates();
-    const now = new Date().toISOString();
+    const now = this.now();
+    
     const newTemplate: DocumentTemplate = {
-      ...template,
-      id: crypto.randomUUID(),
+      ...templateData,
+      id: this.generateId(),
       created_at: now,
       updated_at: now
     };
+    
     templates.push(newTemplate);
     this.setData('document_templates', templates);
+    
+    console.log('📋 Создан шаблон документа:', newTemplate.title);
     return newTemplate;
   }
 
-  // Activity Logs
+  // --------------------------------------------------------------------------
+  // УПРАВЛЕНИЕ НАСТРОЙКАМИ ПОЛЬЗОВАТЕЛЯ
+  // --------------------------------------------------------------------------
+
+  /**
+   * Получить настройки пользователя
+   */
+  getUserSettings(userId: string): UserSettings | null {
+    const settings = this.getData<UserSettings>('user_settings', userId);
+    return settings.length > 0 ? settings[0] : null;
+  }
+
+  /**
+   * Создать настройки пользователя по умолчанию
+   */
+  createUserSettings(userId: string): UserSettings {
+    const existing = this.getUserSettings(userId);
+    if (existing) return existing;
+
+    const newSettings: UserSettings = {
+      id: this.generateId(),
+      user_id: userId,
+      notifications: {
+        taskUpdates: true,
+        deadlineReminders: true,
+        teamActivity: false,
+        emailNotifications: true
+      },
+      appearance: {
+        theme: 'light',
+        language: 'ru',
+        compactView: false
+      },
+      created_at: this.now(),
+      updated_at: this.now()
+    };
+
+    this.setData('user_settings', [newSettings], userId);
+    console.log('⚙️ Созданы настройки пользователя:', userId);
+    return newSettings;
+  }
+
+  /**
+   * Обновить настройки пользователя
+   */
+  updateUserSettings(userId: string, updates: Partial<UserSettings>): UserSettings | null {
+    const settings = this.getUserSettings(userId) || this.createUserSettings(userId);
+    
+    const updatedSettings = { 
+      ...settings, 
+      ...updates, 
+      updated_at: this.now() 
+    };
+    
+    this.setData('user_settings', [updatedSettings], userId);
+    console.log('⚙️ Обновлены настройки пользователя:', userId);
+    return updatedSettings;
+  }
+
+  // --------------------------------------------------------------------------
+  // ЛОГИРОВАНИЕ АКТИВНОСТИ
+  // --------------------------------------------------------------------------
+
+  /**
+   * Получить логи активности пользователя
+   */
   getActivityLogs(userId: string): ActivityLog[] {
     return this.getData<ActivityLog>('activity_logs', userId);
   }
 
-  logActivity(projectId: string, userId: string, action: string, entityType: string, entityId: string, details: any): void {
+  /**
+   * Записать действие в лог активности
+   */
+  logActivity(
+    projectId: string, 
+    userId: string, 
+    action: string, 
+    entityType: string, 
+    entityId: string, 
+    details: any
+  ): void {
     const logs = this.getActivityLogs(userId);
+    
     const newLog: ActivityLog = {
-      id: crypto.randomUUID(),
+      id: this.generateId(),
       project_id: projectId,
       user_id: userId,
       action,
       entity_type: entityType,
       entity_id: entityId,
       details,
-      created_at: new Date().toISOString()
+      created_at: this.now()
     };
+    
     logs.push(newLog);
     this.setData('activity_logs', logs, userId);
+    
+    console.log(`📊 Лог активности: ${action} ${entityType}`, details);
   }
 
-  // Initialize default templates
+  // --------------------------------------------------------------------------
+  // ИНИЦИАЛИЗАЦИЯ И ОЧИСТКА
+  // --------------------------------------------------------------------------
+
+  /**
+   * Инициализировать базовые шаблоны документов
+   * Вызывается один раз при первом запуске
+   */
   initializeDefaultTemplates(): void {
     const existing = this.getDocumentTemplates();
-    if (existing.length > 0) return;
+    if (existing.length > 0) {
+      console.log('📋 Шаблоны уже инициализированы');
+      return;
+    }
 
     const defaultTemplates = [
       {
@@ -590,19 +877,38 @@ class LocalDatabase {
     defaultTemplates.forEach(template => {
       this.createDocumentTemplate(template);
     });
+    
+    console.log('📋 Инициализированы базовые шаблоны документов');
   }
 
-  // Clear user data (for logout)
+  /**
+   * Очистить все данные пользователя
+   * Используется при выходе из системы
+   */
   clearUserData(userId: string): void {
-    const tables = ['projects', 'project_members', 'tasks', 'task_comments', 'documents', 'activity_logs', 'user_settings', 'project_invitations'];
+    const tables = [
+      'projects', 
+      'project_members', 
+      'tasks', 
+      'task_comments', 
+      'documents', 
+      'activity_logs', 
+      'user_settings'
+    ];
+    
     tables.forEach(table => {
       localStorage.removeItem(this.getKey(table, userId));
     });
+    
+    console.log('🧹 Очищены данные пользователя:', userId);
   }
 
-  // Get all user data for export
+  /**
+   * Экспортировать все данные пользователя
+   * Для резервного копирования
+   */
   getAllUserData(userId: string): any {
-    return {
+    const data = {
       projects: this.getProjects(userId),
       tasks: this.getTasks(userId),
       documents: this.getDocuments(userId),
@@ -610,12 +916,27 @@ class LocalDatabase {
       taskComments: this.getTaskComments(userId),
       activityLogs: this.getActivityLogs(userId),
       userSettings: this.getUserSettings(userId),
-      projectInvitations: this.getProjectInvitations(userId)
+      exportDate: this.now()
     };
+    
+    console.log('📦 Экспорт данных пользователя:', userId, 'записей:', Object.values(data).flat().length);
+    return data;
   }
 }
 
+// ============================================================================
+// ЭКСПОРТ И ИНИЦИАЛИЗАЦИЯ
+// ============================================================================
+
+/**
+ * Единственный экземпляр базы данных
+ * Используется во всем приложении
+ */
 export const db = new LocalDatabase();
 
-// Initialize default templates on first load
+/**
+ * Инициализация базовых данных при первом запуске
+ */
 db.initializeDefaultTemplates();
+
+console.log('🚀 Локальная база данных TeamHub инициализирована');
