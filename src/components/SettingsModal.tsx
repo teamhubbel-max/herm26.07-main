@@ -118,13 +118,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const applyTheme = (theme: string) => {
     const root = document.documentElement;
+    console.log('🎨 THEME: Applying theme', theme);
+    
     if (theme === 'dark') {
       root.classList.add('dark');
+      console.log('🌙 THEME: Dark theme applied');
     } else if (theme === 'light') {
       root.classList.remove('dark');
+      console.log('☀️ THEME: Light theme applied');
     } else { // system
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       root.classList.toggle('dark', isDark);
+      console.log('🖥️ THEME: System theme applied, isDark:', isDark);
     }
   };
 

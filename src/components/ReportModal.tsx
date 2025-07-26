@@ -76,6 +76,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   };
 
   const handleGenerateReport = () => {
+    console.log('📊 REPORT: Generating report', {
+      type: reportType,
+      dateRange,
+      users: selectedUsers,
+      format,
+      project: project?.title || 'Проект'
+    });
+    
     const reportData = {
       type: reportType,
       dateRange,
@@ -84,8 +92,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       project: project?.title || 'Проект'
     };
 
-    console.log('Generating report:', reportData);
-    
     // Имитация генерации отчёта
     const fileName = `${project?.title || 'project'}_report_${new Date().toISOString().split('T')[0]}.${format}`;
     
@@ -109,6 +115,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     a.click();
     URL.revokeObjectURL(url);
 
+    console.log('✅ REPORT: Report generated and downloaded:', fileName);
+    
     onClose();
   };
 

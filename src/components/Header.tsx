@@ -42,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Фильтруем задачи по поисковому запросу
   const filteredTasks = allTasks.filter(task => 
-    searchTerm.length > 0 && (
+    searchTerm.length >= 2 && (
       task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -51,11 +51,13 @@ export const Header: React.FC<HeaderProps> = ({
   ).slice(0, 5); // Показываем максимум 5 результатов
 
   const handleSearchChange = (value: string) => {
+    console.log('🔍 SEARCH: Search term changed to:', value);
     onSearchChange(value);
     setShowSearchDropdown(value.length >= 2); // Показываем после 2 символов
   };
 
   const handleTaskSelect = (task: Task) => {
+    console.log('🎯 SEARCH: Task selected:', task);
     setShowSearchDropdown(false);
     onSearchChange('');
     if (onTaskSelect) {

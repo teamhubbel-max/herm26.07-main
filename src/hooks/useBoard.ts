@@ -175,7 +175,48 @@ export const useBoard = (projectId?: string) => {
   };
 
   const addTask = async (task: Omit<TaskWithDetails, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!user || !projectId || !isSupabaseConfigured) return;
+    if (!user) return;
+    
+    console.log('➕ ADD TASK:', { task, projectId, isSupabaseConfigured });
+
+    // Если Supabase не настроен, работаем локально
+    if (!isSupabaseConfigured) {
+      console.log('📱 LOCAL MODE: Adding task locally');
+      
+      const newTask: TaskWithDetails = {
+        id: crypto.randomUUID(),
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        category: task.category,
+        project_id: projectId || 'local-project',
+        assignee_id: null,
+        created_by: user.id,
+        due_date: task.dueDate?.toISOString() || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        dueDate: task.dueDate,
+        assignee: task.assignee
+      };
+
+      // Добавляем в локальное состояние
+      setBoard(prev => ({
+        ...prev,
+        columns: prev.columns.map(column => 
+          column.status === task.status 
+            ? { ...column, tasks: [newTask, ...column.tasks] }
+            : column
+        )
+      }));
+      
+      console.log('✅ Task added locally:', newTask);
+      return;
+    }
+
+    if (!projectId) return;
 
     try {
       // Check for assignee if provided
