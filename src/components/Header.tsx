@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleSearchChange = (value: string) => {
     onSearchChange(value);
-    setShowSearchDropdown(value.length > 0);
+    setShowSearchDropdown(value.length >= 2); // Показываем после 2 символов
   };
 
   const handleTaskSelect = (task: Task) => {
@@ -119,19 +119,19 @@ export const Header: React.FC<HeaderProps> = ({
                 placeholder="Поиск задач..."
                 value={searchTerm}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                onFocus={() => setShowSearchDropdown(searchTerm.length > 0)}
+                onFocus={() => setShowSearchDropdown(searchTerm.length >= 2)}
                 onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
               />
               
               {/* Search Dropdown */}
-              {showSearchDropdown && filteredTasks.length > 0 && (
+              {showSearchDropdown && searchTerm.length >= 2 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
                   <div className="p-2">
                     <div className="text-xs text-gray-500 mb-2 px-2">
                       Найдено задач: {filteredTasks.length}
                     </div>
-                    {filteredTasks.map((task) => (
+                    {filteredTasks.length > 0 ? filteredTasks.map((task) => (
                       <button
                         key={task.id}
                         onClick={() => handleTaskSelect(task)}
@@ -179,16 +179,12 @@ export const Header: React.FC<HeaderProps> = ({
                           </div>
                         </div>
                       </button>
-                    ))}
+                    )) : (
+                      <div className="p-4 text-center text-gray-500">
+                        <span className="text-sm">Задачи не найдены</span>
+                      </div>
+                    )}
                   </div>
-                  
-                  {searchTerm.length > 0 && filteredTasks.length === 0 && (
-                    <div className="p-4 text-center text-gray-500">
-                      <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">Задачи не найдены</p>
-                      <p className="text-xs">Попробуйте изменить поисковый запрос</p>
-                    </div>
-                  )}
                 </div>
               )}
             </div>

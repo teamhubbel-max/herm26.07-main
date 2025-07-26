@@ -8,14 +8,15 @@ import {
   ChevronRight,
   FolderOpen,
   FileText,
-  ArrowLeft
+  ArrowLeft,
+  TrendingUp
 } from 'lucide-react';
 
 interface SidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
-  activeView: 'projects' | 'documents' | 'analytics';
-  onViewChange: (view: 'projects' | 'documents' | 'analytics') => void;
+  activeView: 'projects' | 'documents' | 'analytics' | 'marketing';
+  onViewChange: (view: 'projects' | 'documents' | 'analytics' | 'marketing') => void;
   onSettingsClick: () => void;
   showBackButton?: boolean;
   onBackClick?: () => void;
@@ -34,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'projects', icon: FolderOpen, label: 'Проекты' },
     { id: 'documents', icon: FileText, label: 'Документы' },
     { id: 'analytics', icon: LayoutDashboard, label: 'Аналитика' },
+    { id: 'marketing', icon: TrendingUp, label: 'Маркетинг' },
   ];
 
   const bottomItems = [

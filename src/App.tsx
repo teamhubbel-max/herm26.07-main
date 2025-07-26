@@ -8,6 +8,7 @@ import { ProjectsLobby } from './components/ProjectsLobby';
 import { ProjectBoard } from './components/ProjectBoard';
 import { DocumentsSection } from './components/DocumentsSection';
 import { SettingsModal } from './components/SettingsModal';
+import { MarketingSection } from './components/MarketingSection';
 import { useBoard } from './hooks/useBoard';
 import { useProjects } from './hooks/useProjects';
 import { useDocuments } from './hooks/useDocuments';
@@ -38,6 +39,7 @@ function App() {
   } = useDocuments(projects);
 
   const [activeView, setActiveView] = useState<'projects' | 'documents' | 'analytics' | 'projectBoard'>('projects');
+  const [activeView, setActiveView] = useState<'projects' | 'documents' | 'analytics' | 'marketing' | 'projectBoard'>('projects');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -145,6 +147,8 @@ function App() {
             onOpenProject={handleOpenProject}
           />
         );
+      case 'marketing':
+        return <MarketingSection />;
       default:
         return (
           <ProjectsLobby

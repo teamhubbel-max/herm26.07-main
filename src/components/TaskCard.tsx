@@ -11,7 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Task } from '../types/Task';
-import { EditTaskModal } from './EditTaskModal';
+import { TaskDetailsModal } from './TaskDetailsModal';
 
 interface TaskCardProps {
   task: Task;
@@ -19,6 +19,8 @@ interface TaskCardProps {
   onUpdate: (taskId: string, updates: Partial<Task>) => void;
   onDelete: (taskId: string) => void;
   compact?: boolean;
+  onAddComment?: (taskId: string, content: string) => void;
+  getTaskComments?: (taskId: string) => Promise<any[]>;
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({
@@ -26,10 +28,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   index,
   onUpdate,
   onDelete,
-  compact = false
+  compact = false,
+  onAddComment,
+  getTaskComments
 }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -156,7 +160,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   <div className="absolute right-0 top-6 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                     <button
                       onClick={() => {
-                        setIsEditModalOpen(true);
+                        setIsTaskModalOpen(true);
                         setShowMenu(false);
                       }}
                       className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
@@ -226,11 +230,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         )}
       </Draggable>
 
-      <EditTaskModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+      <TaskDetailsModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
         task={task}
-        onUpdate={(updates) => onUpdate(task.id, updates)}
+        onUpdate={onUpdate}
+        onAddComment={onAddComment}
+        getTaskComments={getTaskComments}
       />
     </>
   );

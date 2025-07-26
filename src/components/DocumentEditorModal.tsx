@@ -125,13 +125,13 @@ export const DocumentEditorModal: React.FC<DocumentEditorModalProps> = ({
         </div>
 
         <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Column - Template Settings */}
-            <div className="space-y-6">
+          <div className="space-y-8">
+            {/* Template Settings - Full Width Top Section */}
+            <div className="bg-gray-50 rounded-lg p-6">
               <div>
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Настройки шаблона</h3>
                 
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Название шаблона *
@@ -142,19 +142,6 @@ export const DocumentEditorModal: React.FC<DocumentEditorModalProps> = ({
                       onChange={(e) => setTemplateData(prev => ({ ...prev, title: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Например: Договор подряда"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Описание
-                    </label>
-                    <textarea
-                      value={templateData.description}
-                      onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      placeholder="Краткое описание шаблона"
                     />
                   </div>
 
@@ -173,11 +160,35 @@ export const DocumentEditorModal: React.FC<DocumentEditorModalProps> = ({
                       ))}
                     </select>
                   </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <label className="text-sm font-medium text-gray-700">Тип документа:</label>
+                      <select className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="single">Одиночный</option>
+                        <option value="set">Набор документов</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Описание
+                  </label>
+                  <textarea
+                    value={templateData.description}
+                    onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    placeholder="Краткое описание шаблона"
+                  />
                 </div>
               </div>
+            </div>
 
               {/* Dynamic Fields */}
-              <div>
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-gray-900">Динамические поля</h3>
                   <button
@@ -189,7 +200,7 @@ export const DocumentEditorModal: React.FC<DocumentEditorModalProps> = ({
                   </button>
                 </div>
 
-                <div className="space-y-4 max-h-64 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
                   {fields.map((field, index) => (
                     <div key={field.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
@@ -202,12 +213,12 @@ export const DocumentEditorModal: React.FC<DocumentEditorModalProps> = ({
                         </button>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-3">
                         <input
                           type="text"
                           value={field.name}
                           onChange={(e) => updateField(field.id, { name: e.target.value })}
-                          placeholder="Имя поля (например: contractNumber)"
+                          placeholder="Имя поля"
                           className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         />
                         <input
@@ -235,10 +246,9 @@ export const DocumentEditorModal: React.FC<DocumentEditorModalProps> = ({
                           />
                           <span className="text-sm text-gray-600">Обязательное</span>
                         </div>
-                      </div>
                       
                       {field.type === 'select' && (
-                        <div className="mt-3">
+                        <div>
                           <input
                             type="text"
                             value={field.options?.join(', ') || ''}
@@ -248,20 +258,20 @@ export const DocumentEditorModal: React.FC<DocumentEditorModalProps> = ({
                           />
                         </div>
                       )}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
 
-            {/* Right Column - Content Editor */}
-            <div>
+            {/* Content Editor - Full Width */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Содержимое документа</h3>
               
               <div className="mb-4">
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <h4 className="text-sm font-medium text-blue-800 mb-2">Доступные переменные:</h4>
-                  <div className="text-sm text-blue-700 space-y-1">
+                  <div className="text-sm text-blue-700 grid grid-cols-2 md:grid-cols-4 gap-2">
                     <p><code>{'{{counterparty.name}}'}</code> - Название контрагента</p>
                     <p><code>{'{{counterparty.inn}}'}</code> - ИНН контрагента</p>
                     <p><code>{'{{counterparty.address}}'}</code> - Адрес контрагента</p>
@@ -280,19 +290,10 @@ export const DocumentEditorModal: React.FC<DocumentEditorModalProps> = ({
                   onChange={(content) => setTemplateData(prev => ({ ...prev, content }))}
                   modules={quillModules}
                   formats={quillFormats}
-                  style={{ height: '400px' }}
+                  style={{ height: '500px' }}
                   placeholder="Введите содержимое документа. Используйте переменные в двойных фигурных скобках для динамических данных."
                 />
               </div>
-              
-              {/* Старый textarea для справки - можно удалить */}
-              {/* <textarea
-                value={templateData.content}
-                onChange={(e) => setTemplateData(prev => ({ ...prev, content: e.target.value }))}
-                rows={20}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm"
-                placeholder="Введите содержимое документа. Используйте переменные в двойных фигурных скобках для динамических данных."
-              /> */}
             </div>
           </div>
 

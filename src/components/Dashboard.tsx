@@ -22,6 +22,19 @@ import {
   Eye,
   ExternalLink
 } from 'lucide-react';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, BarElement } from 'chart.js';
+import { Line, Bar } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface DashboardProps {
   projects: any[];
@@ -37,6 +50,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [kpiCarouselIndex, setKpiCarouselIndex] = useState(0);
   const [eventsScrollIndex, setEventsScrollIndex] = useState(0);
+  const [chartType, setChartType] = useState<'line' | 'bar'>('line');
+  const [chartMetric, setChartMetric] = useState<'tasks' | 'efficiency' | 'projects'>('tasks');
   
   // Фильтры для ключевых показателей
   const [filters, setFilters] = useState({
@@ -104,6 +119,84 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }));
   }, [user, teamMembers, projects]);
 
+  // Данные для графиков
+  const chartData = useMemo(() => {
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      return date.toLocaleDateString('ru-RU', { month: 'short', day: 'numeric' });
+    });
+
+    const taskData = {
+      labels: last7Days,
+      datasets: [
+        {
+          label: 'Выполненные задачи',
+          data: [2, 5, 3, 8, 6, 4, 7],
+          borderColor: 'rgb(34, 197, 94)',
+          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+          tension: 0.4,
+        },
+        {
+          label: 'Новые задачи',
+          data: [3, 7, 4, 6, 8, 5, 9],
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          tension: 0.4,
+        }
+      ]
+    };
+
+    const efficiencyData = {
+      labels: last7Days,
+      datasets: [
+        {
+          label: 'Эффективность команды %',
+          data: [75, 82, 78, 85, 88, 84, 90],
+          borderColor: 'rgb(168, 85, 247)',
+          backgroundColor: 'rgba(168, 85, 247, 0.1)',
+          tension: 0.4,
+        }
+      ]
+    };
+
+    const projectData = {
+      labels: projects.slice(0, 5).map(p => p.title),
+      datasets: [
+        {
+          label: 'Прогресс проектов %',
+          data: projects.slice(0, 5).map(p => p.progress),
+          backgroundColor: projects.slice(0, 5).map(p => p.color + '80'),
+          borderColor: projects.slice(0, 5).map(p => p.color),
+          borderWidth: 2,
+        }
+      ]
+    };
+
+    switch (chartMetric) {
+      case 'efficiency': return efficiencyData;
+      case 'projects': return projectData;
+      default: return taskData;
+    }
+  }, [chartMetric, projects]);
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: false,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: chartMetric === 'efficiency' || chartMetric === 'projects' ? 100 : undefined,
+      },
+    },
+  };
   const handleTaskClick = (task: any) => {
     setSelectedTask(task);
     setIsTaskModalOpen(true);
@@ -463,7 +556,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Ключевые показатели с фильтрами */}
-        <div>
+        <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-gray-900">Ключевые показатели</h3>
             <div className="flex items-center space-x-4">
@@ -549,6 +642,57 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
               <h4 className="font-medium text-gray-900">Качество работы</h4>
               <p className="text-sm text-gray-600">Средняя оценка задач</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Динамические графики */}
+        <div>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-900">Динамика показателей</h3>
+            <div className="flex items-center space-x-4">
+              <select
+                value={chartMetric}
+                onChange={(e) => setChartMetric(e.target.value as any)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="tasks">Задачи</option>
+                <option value="efficiency">Эффективность</option>
+                <option value="projects">Прогресс проектов</option>
+              </select>
+              
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setChartType('line')}
+                  className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                    chartType === 'line' 
+                      ? 'bg-white text-blue-600 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Линейный
+                </button>
+                <button
+                  onClick={() => setChartType('bar')}
+                  className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                    chartType === 'bar' 
+                      ? 'bg-white text-blue-600 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Столбчатый
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="h-80">
+              {chartType === 'line' ? (
+                <Line data={chartData} options={chartOptions} />
+              ) : (
+                <Bar data={chartData} options={chartOptions} />
+              )}
             </div>
           </div>
         </div>
