@@ -6,9 +6,8 @@ import { db } from '../lib/database';
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
 
   useEffect(() => {
     // Проверяем, настроен ли Supabase
@@ -21,7 +20,6 @@ export const useAuth = () => {
     
     if (supabaseConfigured) {
       // Только если Supabase настроен - проверяем сессию
-      setLoading(true);
       
       const getInitialSession = async () => {
         try {
@@ -38,10 +36,6 @@ export const useAuth = () => {
           console.error('Error getting session:', err);
           setError('Ошибка подключения к Supabase, переключаемся в локальный режим');
           setIsSupabaseConfigured(false);
-          setUser(null);
-          setProfile(null);
-        } finally {
-          setLoading(false);
         }
       };
 
@@ -67,14 +61,10 @@ export const useAuth = () => {
       } catch (err) {
         console.error('Error setting up auth listener:', err);
         setIsSupabaseConfigured(false);
-        setLoading(false);
       }
     } else {
       // Supabase не настроен - сразу показываем форму авторизации
       console.log('Supabase not configured, using local mode');
-      setUser(null);
-      setProfile(null);
-      setLoading(false);
     }
   }, []);
 
@@ -165,7 +155,6 @@ export const useAuth = () => {
   return {
     user,
     profile,
-    loading,
     error,
     isSupabaseConfigured,
     signOut,
