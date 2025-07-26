@@ -107,6 +107,9 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
+    // Очищаем демо режим
+    localStorage.removeItem('demo_user');
+    
     if (!isSupabaseConfigured) {
       setUser(null);
       setProfile(null);
