@@ -23,14 +23,15 @@ export const AuthPage: React.FC = () => {
   });
 
   const handleGoogleSignIn = async () => {
+    console.log('🔐 Попытка входа через Google');
     setAuthLoading(true);
     try {
       const { error } = await signInWithGoogle();
       if (error) {
-        console.error('Google sign in error:', error);
+        console.error('❌ Ошибка входа через Google:', error);
       }
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error('❌ Исключение при входе через Google:', error);
     } finally {
       setAuthLoading(false);
     }
@@ -38,32 +39,40 @@ export const AuthPage: React.FC = () => {
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log(`🔐 Попытка ${isSignUp ? 'регистрации' : 'входа'} по email:`, formData.email);
     setAuthLoading(true);
     
     try {
       if (isSignUp) {
+        console.log('📝 Регистрация нового пользователя');
         const { error } = await signUpWithEmail(
           formData.email, 
           formData.password, 
           formData.fullName
         );
         if (error) {
-          console.error('Sign up error:', error);
+          console.error('❌ Ошибка регистрации:', error);
+        } else {
+          console.log('✅ Регистрация успешна');
         }
       } else {
+        console.log('🔑 Вход существующего пользователя');
         const { error } = await signInWithEmail(formData.email, formData.password);
         if (error) {
-          console.error('Sign in error:', error);
+          console.error('❌ Ошибка входа:', error);
+        } else {
+          console.log('✅ Вход успешен');
         }
       }
     } catch (error) {
-      console.error('Auth error:', error);
+      console.error('❌ Исключение при авторизации:', error);
     } finally {
       setAuthLoading(false);
     }
   };
 
   const handleDemoMode = () => {
+    console.log('🎭 Активация демо режима');
     enterDemoMode();
   };
 
@@ -239,7 +248,11 @@ export const AuthPage: React.FC = () => {
             {isSupabaseConfigured && (
               <div className="text-center">
                 <button
-                  onClick={() => setIsSignUp(!isSignUp)}
+                  onClick={() => {
+                    console.log(`🔄 Переключение на ${!isSignUp ? 'регистрацию' : 'вход'}`);
+                    setIsSignUp(!isSignUp);
+                    setFormData({ email: '', password: '', fullName: '' });
+                  }}
                   className="text-blue-600 hover:text-blue-700 font-medium"
                 >
                   {isSignUp 
