@@ -381,7 +381,6 @@ export const AuthPage: React.FC = () => {
         </div>
       </div>
     </div>
-  );
     {/* Telegram Verification Modal */}
     <TelegramVerificationModal
       isOpen={showTelegramModal}
@@ -390,4 +389,5 @@ export const AuthPage: React.FC = () => {
       onSuccess={handleTelegramSuccess}
     />
     </>
+  );
 };
