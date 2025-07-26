@@ -1,108 +1,183 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
-import { db } from '../lib/database';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
 
   useEffect(() => {
-    // Проверяем, настроен ли Supabase
+    // Проверяем настройки Supabase
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
-    // Синхронная проверка настроек Supabase
-    const supabaseConfigured = !!(supabaseUrl && supabaseKey);
-    setIsSupabaseConfigured(supabaseConfigured);
+    const configured = !!(supabaseUrl && supabaseKey);
+    setIsSupabaseConfigured(configured);
     
-    if (supabaseConfigured) {
-      // Только если Supabase настроен - проверяем сессию
+    if (configured) {
+      initializeAuth();
+    } else {
+      // Если Supabase не настроен, проверяем демо режим
+      checkDemoMode();
+    }
+  }, []);
+
+  const checkDemoMode = () => {
+    const demoUser = localStorage.getItem('demo_user');
+    if (demoUser) {
+      try {
+        const userData = JSON.parse(demoUser);
+        setUser(userData as User);
+        setProfile({
+          id: userData.id,
+          email: userData.email,
+          full_name: userData.full_name || 'Демо пользователь',
+          avatar_url: null,
+          role: 'member',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          telegram_id: null,
+          telegram_username: null
+        });
+      } catch (error) {
+        console.error('Error parsing demo user:', error);
+        localStorage.removeItem('demo_user');
+      }
+    }
+    setLoading(false);
+  };
+
+  const initializeAuth = async () => {
+    try {
+      setLoading(true);
       
-      const getInitialSession = async () => {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
+      // Получаем текущую сессию
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        setError('Ошибка получения сессии');
+        setLoading(false);
+        return;
+      }
+
+      if (session?.user) {
+        setUser(session.user);
+        await loadOrCreateProfile(session.user);
+      }
+
+      // Подписываемся на изменения авторизации
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          console.log('Auth state changed:', event, session?.user?.email);
           
           if (session?.user) {
             setUser(session.user);
-            await loadProfile(session.user.id);
+            await loadOrCreateProfile(session.user);
           } else {
             setUser(null);
             setProfile(null);
           }
-        } catch (err) {
-          console.error('Error getting session:', err);
-          setError('Ошибка подключения к Supabase, переключаемся в локальный режим');
-          setIsSupabaseConfigured(false);
         }
+      );
+
+      return () => {
+        subscription.unsubscribe();
       };
-
-      getInitialSession();
-      
-      // Подписка на изменения авторизации
-      try {
-        const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            setUser(session?.user ?? null);
-            
-            if (session?.user) {
-              await loadProfile(session.user.id);
-            } else {
-              setProfile(null);
-            }
-          }
-        );
-        
-        return () => {
-          authSubscription.unsubscribe();
-        };
-      } catch (err) {
-        console.error('Error setting up auth listener:', err);
-        setIsSupabaseConfigured(false);
-      }
-    } else {
-      // Supabase не настроен - сразу показываем форму авторизации
-      console.log('Supabase not configured, using local mode');
+    } catch (err) {
+      console.error('Auth initialization error:', err);
+      setError('Ошибка инициализации авторизации');
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  const loadProfile = async (userId: string) => {
-    if (!isSupabaseConfigured) {
-      return;
-    }
-    
+  const loadOrCreateProfile = async (user: User) => {
     try {
-      const { data: profile, error } = await supabase
+      // Сначала пытаемся найти существующий профиль
+      const { data: existingProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', user.id)
         .single();
 
-      if (error && error.code === 'PGRST116') {
-        // Profile doesn't exist, create one
-        const { data: newProfile, error: createError } = await supabase
+      if (existingProfile) {
+        setProfile(existingProfile);
+        return;
+      }
+
+      // Если профиль не найден, создаем новый
+      if (fetchError?.code === 'PGRST116') {
+        console.log('Creating new profile for user:', user.email);
+        
+        const newProfile = {
+          id: user.id,
+          email: user.email || '',
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
+          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+          role: 'member'
+        };
+
+        const { data: createdProfile, error: createError } = await supabase
           .from('profiles')
-          .insert({
-            id: userId,
-            email: user?.email || '',
-            full_name: user?.user_metadata?.full_name || '',
-            avatar_url: user?.user_metadata?.avatar_url
-          })
+          .insert(newProfile)
           .select()
           .single();
 
-        if (createError) throw createError;
-        setProfile(newProfile);
-      } else if (error) {
-        throw error;
+        if (createError) {
+          console.error('Error creating profile:', createError);
+          setError('Ошибка создания профиля');
+          return;
+        }
+
+        setProfile(createdProfile);
+        console.log('Profile created successfully:', createdProfile);
       } else {
-        setProfile(profile);
+        console.error('Error fetching profile:', fetchError);
+        setError('Ошибка загрузки профиля');
       }
     } catch (err) {
-      console.error('Error loading profile:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      console.error('Profile error:', err);
+      setError('Ошибка работы с профилем');
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured) {
+      setError('Supabase не настроен');
+      return { error: { message: 'Supabase не настроен' } };
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+
+      if (error) {
+        setError(error.message);
+        return { error };
+      }
+
+      return { data, error: null };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка входа через Google';
+      setError(errorMessage);
+      return { error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -118,6 +193,12 @@ export const useAuth = () => {
     
     try {
       const { error } = await supabase.auth.signOut();
+      
+      if (!error) {
+        setUser(null);
+        setProfile(null);
+      }
+      
       return { error };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка выхода';
@@ -132,7 +213,7 @@ export const useAuth = () => {
       }
 
       if (!isSupabaseConfigured) {
-        // Обновляем локальный профиль
+        // Обновляем локальный профиль в демо режиме
         const updatedProfile = { ...profile, ...updates } as Profile;
         setProfile(updatedProfile);
         return { data: updatedProfile, error: null };
@@ -155,12 +236,39 @@ export const useAuth = () => {
     }
   };
 
+  const enterDemoMode = () => {
+    const mockUser = {
+      id: 'demo-user-' + Date.now(),
+      email: 'demo@example.com',
+      user_metadata: {
+        full_name: 'Демо Пользователь'
+      }
+    };
+    
+    localStorage.setItem('demo_user', JSON.stringify(mockUser));
+    setUser(mockUser as User);
+    setProfile({
+      id: mockUser.id,
+      email: mockUser.email,
+      full_name: 'Демо Пользователь',
+      avatar_url: null,
+      role: 'member',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      telegram_id: null,
+      telegram_username: null
+    });
+  };
+
   return {
     user,
     profile,
+    loading,
     error,
     isSupabaseConfigured,
+    signInWithGoogle,
     signOut,
     updateProfile,
+    enterDemoMode,
   };
 };

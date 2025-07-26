@@ -1,33 +1,27 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, MessageCircle } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { TelegramVerificationModal } from './TelegramVerificationModal';
 
 export const AuthPage: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const { isSupabaseConfigured } = useAuth();
+  const { signInWithGoogle, loading, error, isSupabaseConfigured, enterDemoMode } = useAuth();
+  const [authLoading, setAuthLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
+    setAuthLoading(true);
     try {
-      setLoading(true);
-      const { supabase } = await import('../lib/supabase');
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin
-        }
-      });
-      
+      const { error } = await signInWithGoogle();
       if (error) {
-        setErrors({ general: error.message });
+        console.error('Google sign in error:', error);
       }
     } catch (error) {
-      setErrors({ general: 'Ошибка входа через Google' });
+      console.error('Sign in error:', error);
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
+  };
+
+  const handleDemoMode = () => {
+    enterDemoMode();
   };
 
   return (
@@ -40,7 +34,7 @@ export const AuthPage: React.FC = () => {
           </div>
           
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Войдите в Гермес
+            Добро пожаловать в Гермес
           </h1>
           <p className="text-gray-600">
             Система управления проектами для современных команд
@@ -50,20 +44,31 @@ export const AuthPage: React.FC = () => {
         {/* Auth Form */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
           <div className="space-y-6">
-            {/* Description */}
+            {/* Error Display */}
+            {error && (
+              <div className="p-4 rounded-xl bg-red-50 border border-red-200 flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">Ошибка авторизации</h3>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Google Auth Section */}
             <div className="text-center mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Вход через Google</h2>
-              <p className="text-gray-600">Используйте свой Google аккаунт для входа в систему</p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Вход в систему</h2>
+              <p className="text-gray-600">Используйте Google аккаунт для безопасного входа</p>
             </div>
 
             {/* Google Auth Button */}
             <button
               type="button"
               onClick={handleGoogleSignIn}
-              disabled={loading}
+              disabled={authLoading || loading}
               className="w-full bg-white border-2 border-gray-300 text-gray-700 font-medium py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 hover:bg-gray-50 hover:border-gray-400 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {authLoading || loading ? (
                 <Loader2 className="w-6 h-6 animate-spin" />
               ) : (
                 <>
@@ -78,53 +83,41 @@ export const AuthPage: React.FC = () => {
               )}
             </button>
 
+            {/* Supabase Status */}
             {!isSupabaseConfigured && (
-              <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-                <p className="text-sm text-yellow-800">
-                  Google OAuth требует настройки Supabase. 
-                  <br />
-                  Подключите базу данных для использования авторизации.
-                </p>
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-medium text-yellow-800">Требуется настройка</h3>
+                    <p className="text-sm text-yellow-700 mt-1">
+                      Google OAuth требует настройки Supabase. Подключите базу данных для полноценной работы.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Temporary Demo Access */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
+            {/* Demo Mode */}
+            <div className="pt-6 border-t border-gray-200">
               <button
                 type="button"
-                onClick={() => {
-                  // Симулируем успешную авторизацию для демо
-                  const mockUser = {
-                    id: 'demo-user',
-                    email: 'demo@example.com',
-                    full_name: 'Демо Пользователь'
-                  };
-                  
-                  // Сохраняем в localStorage как признак "авторизации"
-                  localStorage.setItem('demo_user', JSON.stringify(mockUser));
-                  window.location.reload();
-                }}
+                onClick={handleDemoMode}
                 className="w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200"
               >
                 Демо режим (без авторизации)
               </button>
+              <p className="text-xs text-gray-500 text-center mt-2">
+                Для тестирования функций без регистрации
+              </p>
             </div>
-
-            {/* General Error */}
-            {errors.general && (
-              <div className="p-4 rounded-xl bg-red-50 border border-red-200">
-                <p className="text-sm text-red-700">
-                  {errors.general}
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
         {/* Footer */}
         <div className="text-center mt-8">
           <p className="text-sm text-gray-500">
-            Продолжая, вы соглашаетесь с нашими условиями использования
+            Продолжая, вы соглашаетесь с условиями использования
           </p>
         </div>
       </div>
