@@ -2,197 +2,839 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Темная тема */
+/* ==========================================================================
+   ОСНОВНЫЕ СТИЛИ И АНИМАЦИИ TEAMHUB
+   ========================================================================== */
+
+/* 
+  ЦВЕТОВАЯ СХЕМА:
+  - Основной: #3B82F6 (синий)
+  - Успех: #10B981 (зеленый)
+  - Предупреждение: #F59E0B (оранжевый)
+  - Ошибка: #EF4444 (красный)
+  - Фон: #F9FAFB (светло-серый)
+*/
+
+/* Базовые переменные для цветов */
+:root {
+  --primary-blue: #3B82F6;
+  --primary-blue-hover: #2563EB;
+  --primary-blue-light: #DBEAFE;
+  
+  --success-green: #10B981;
+  --success-green-hover: #059669;
+  --success-green-light: #D1FAE5;
+  
+  --warning-orange: #F59E0B;
+  --warning-orange-hover: #D97706;
+  --warning-orange-light: #FEF3C7;
+  
+  --error-red: #EF4444;
+  --error-red-hover: #DC2626;
+  --error-red-light: #FEE2E2;
+  
+  --gray-50: #F9FAFB;
+  --gray-100: #F3F4F6;
+  --gray-200: #E5E7EB;
+  --gray-300: #D1D5DB;
+  --gray-400: #9CA3AF;
+  --gray-500: #6B7280;
+  --gray-600: #4B5563;
+  --gray-700: #374151;
+  --gray-800: #1F2937;
+  --gray-900: #111827;
+}
+
+/* ==========================================================================
+   АНИМАЦИИ И ПЕРЕХОДЫ
+   ========================================================================== */
+
+/* Плавное появление элементов */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Анимация загрузки */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Пульсация для загрузочных элементов */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Покачивание для элементов drag & drop */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-2deg); }
+  75% { transform: rotate(2deg); }
+}
+
+/* Увеличение при наведении */
+@keyframes scaleUp {
+  from { transform: scale(1); }
+  to { transform: scale(1.05); }
+}
+
+/* Волнообразный эффект для кнопок */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* ==========================================================================
+   КЛАССЫ ДЛЯ АНИМАЦИЙ
+   ========================================================================== */
+
+/* Основные анимации */
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-wiggle {
+  animation: wiggle 0.5s ease-in-out;
+}
+
+.animate-scaleUp {
+  animation: scaleUp 0.2s ease-out;
+}
+
+/* Переходы для всех интерактивных элементов */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-fast {
+  transition: all 0.15s ease-in-out;
+}
+
+.transition-bounce {
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* ==========================================================================
+   КОМПОНЕНТЫ ИНТЕРФЕЙСА
+   ========================================================================== */
+
+/* Стилизованные кнопки с анимациями */
+.btn-primary {
+  @apply bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-3 rounded-xl;
+  @apply transition-all duration-200 transform hover:scale-105 hover:shadow-lg;
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+.btn-secondary {
+  @apply bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-xl;
+  @apply transition-all duration-200 transform hover:scale-105;
+  @apply focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+}
+
+.btn-success {
+  @apply bg-green-500 hover:bg-green-600 text-white font-medium px-6 py-3 rounded-xl;
+  @apply transition-all duration-200 transform hover:scale-105 hover:shadow-lg;
+}
+
+.btn-danger {
+  @apply bg-red-500 hover:bg-red-600 text-white font-medium px-6 py-3 rounded-xl;
+  @apply transition-all duration-200 transform hover:scale-105 hover:shadow-lg;
+}
+
+/* Карточки с тенями и анимациями */
+.card {
+  @apply bg-white rounded-xl border border-gray-200 p-6;
+  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+}
+
+.card-interactive {
+  @apply card cursor-pointer;
+  @apply hover:border-blue-300 hover:bg-blue-50;
+}
+
+/* Поля ввода с улучшенными стилями */
+.input-field {
+  @apply w-full px-4 py-3 border border-gray-300 rounded-xl;
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  @apply transition-all duration-200;
+  @apply placeholder-gray-400;
+}
+
+.input-field:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.1);
+}
+
+/* ==========================================================================
+   KANBAN ДОСКА И ЗАДАЧИ
+   ========================================================================== */
+
+/* Стикеры-задачи с эффектом бумаги */
+.task-sticky {
+  position: relative;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  border: 2px solid #F59E0B;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 
+    0 4px 6px rgba(0, 0, 0, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.06);
+  transform: rotate(-1deg);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.task-sticky:hover {
+  transform: rotate(0deg) translateY(-4px);
+  box-shadow: 
+    0 20px 25px rgba(0, 0, 0, 0.1),
+    0 10px 10px rgba(0, 0, 0, 0.04);
+}
+
+.task-sticky:nth-child(even) {
+  transform: rotate(1deg);
+  background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
+  border-color: #3B82F6;
+}
+
+.task-sticky:nth-child(3n) {
+  background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+  border-color: #10B981;
+}
+
+/* Кнопка-кнопка на стикере */
+.task-sticky::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  background: #EF4444;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 2px solid white;
+}
+
+/* Анимация при перетаскивании */
+.task-dragging {
+  transform: rotate(6deg) scale(1.1);
+  z-index: 1000;
+  box-shadow: 
+    0 25px 50px rgba(0, 0, 0, 0.15),
+    0 15px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Колонки доски */
+.board-column {
+  background: var(--gray-50);
+  border-radius: 16px;
+  min-height: 400px;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.board-column.drag-over {
+  border-color: var(--primary-blue);
+  background: var(--primary-blue-light);
+  transform: scale(1.02);
+}
+
+/* ==========================================================================
+   МОДАЛЬНЫЕ ОКНА
+   ========================================================================== */
+
+/* Анимация появления модальных окон */
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content {
+  animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Закрытие модального окна */
+.modal-closing {
+  animation: modalSlideOut 0.3s ease-in;
+}
+
+@keyframes modalSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+}
+
+/* ==========================================================================
+   КОМПОНЕНТЫ НАВИГАЦИИ
+   ========================================================================== */
+
+/* Боковая панель */
+.sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+  border-right: 1px solid var(--gray-200);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-collapsed {
+  transform: translateX(-200px);
+}
+
+/* Пункты меню с анимациями */
+.menu-item {
+  @apply flex items-center space-x-3 px-4 py-3 rounded-xl;
+  @apply transition-all duration-200 relative overflow-hidden;
+}
+
+.menu-item:hover {
+  background: linear-gradient(90deg, var(--primary-blue-light) 0%, transparent 100%);
+  transform: translateX(4px);
+}
+
+.menu-item.active {
+  background: var(--primary-blue);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Анимация волны для активного пункта */
+.menu-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  background: white;
+  border-radius: 0 2px 2px 0;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { height: 0; }
+  to { height: 100%; }
+}
+
+/* ==========================================================================
+   ЗАГОЛОВОК И ПОИСК
+   ========================================================================== */
+
+/* Поисковая строка с анимациями */
+.search-input {
+  @apply input-field;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.search-input:focus {
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+  border-color: var(--primary-blue);
+}
+
+/* Выпадающий список поиска */
+.search-dropdown {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  animation: fadeIn 0.2s ease-out;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.search-item {
+  @apply p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-150;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.search-item:last-child {
+  border-bottom: none;
+}
+
+.search-item:hover {
+  background: var(--primary-blue-light);
+  transform: translateX(2px);
+}
+
+/* ==========================================================================
+   СТАТИСТИКА И КАРТОЧКИ
+   ========================================================================== */
+
+/* Карточки статистики */
+.stats-card {
+  @apply card;
+  background: linear-gradient(135deg, white 0%, #f9fafb 100%);
+  border: 1px solid var(--gray-200);
+  position: relative;
+  overflow: hidden;
+}
+
+.stats-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-blue) 0%, var(--success-green) 100%);
+}
+
+.stats-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Анимация чисел в статистике */
+.stats-number {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--gray-900);
+  display: inline-block;
+  animation: countUp 1s ease-out;
+}
+
+@keyframes countUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==========================================================================
+   ПРОГРЕСС БАРЫ И ИНДИКАТОРЫ
+   ========================================================================== */
+
+/* Анимированный прогресс бар */
+.progress-bar {
+  background: var(--gray-200);
+  border-radius: 10px;
+  height: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--primary-blue) 0%, var(--success-green) 100%);
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Индикаторы приоритета */
+.priority-high {
+  background: linear-gradient(135deg, var(--error-red-light) 0%, var(--error-red) 100%);
+  color: var(--error-red);
+  border: 1px solid var(--error-red);
+}
+
+.priority-medium {
+  background: linear-gradient(135deg, var(--warning-orange-light) 0%, var(--warning-orange) 100%);
+  color: var(--warning-orange);
+  border: 1px solid var(--warning-orange);
+}
+
+.priority-low {
+  background: linear-gradient(135deg, var(--success-green-light) 0%, var(--success-green) 100%);
+  color: var(--success-green);
+  border: 1px solid var(--success-green);
+}
+
+/* ==========================================================================
+   ТЕМНАЯ ТЕМА (ПРИНУДИТЕЛЬНЫЕ СТИЛИ)
+   ========================================================================== */
+
+/* Темная тема - применяется принудительно */
 .dark {
-  color-scheme: dark;
+  color-scheme: dark !important;
 }
 
 .dark body {
-  background-color: #111827;
-  color: #f3f4f6;
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
 }
 
 .dark .bg-white {
-  background-color: #1f2937;
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
 }
 
 .dark .bg-gray-50 {
-  background-color: #111827;
+  background-color: #0f172a !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #1e293b !important;
 }
 
 .dark .text-gray-900 {
-  color: #f3f4f6;
+  color: #f1f5f9 !important;
+}
+
+.dark .text-gray-800 {
+  color: #e2e8f0 !important;
+}
+
+.dark .text-gray-700 {
+  color: #cbd5e1 !important;
 }
 
 .dark .text-gray-600 {
-  color: #9ca3af;
+  color: #94a3b8 !important;
+}
+
+.dark .text-gray-500 {
+  color: #64748b !important;
 }
 
 .dark .border-gray-200 {
-  border-color: #374151;
+  border-color: #334155 !important;
 }
 
-/* Стили для React Quill редактора */
-.ql-editor {
-  min-height: 350px;
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
+.dark .border-gray-300 {
+  border-color: #475569 !important;
 }
 
-.ql-toolbar {
-  border-top: 1px solid #e5e7eb;
-  border-left: 1px solid #e5e7eb;
-  border-right: 1px solid #e5e7eb;
-  border-bottom: none;
-  background: #f9fafb;
+.dark .hover\:bg-gray-50:hover {
+  background-color: #334155 !important;
 }
 
-.ql-container {
-  border-bottom: 1px solid #e5e7eb;
-  border-left: 1px solid #e5e7eb;
-  border-right: 1px solid #e5e7eb;
-  border-top: none;
+.dark .hover\:bg-gray-100:hover {
+  background-color: #475569 !important;
 }
 
-.ql-snow .ql-tooltip {
-  z-index: 9999;
+/* Карточки в темной теме */
+.dark .card {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
 }
 
-/* Переменные в тексте */
-.ql-editor .variable {
-  background-color: #dbeafe;
-  color: #1d4ed8;
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-family: 'Monaco', 'Menlo', monospace;
-  font-size: 12px;
+/* Поля ввода в темной теме */
+.dark .input-field {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
 }
 
-/* Мобильная адаптивность */
+.dark .input-field:focus {
+  border-color: var(--primary-blue) !important;
+  background-color: #0f172a !important;
+}
+
+/* Модальные окна в темной теме */
+.dark .modal-content {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+/* ==========================================================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ
+   ========================================================================== */
+
+/* Оптимизация для мобильных устройств */
 @media (max-width: 768px) {
-  /* Общая адаптивность */
-  .container {
-    padding: 0.5rem !important;
-  }
-  
-  .responsive-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-
-  .mobile-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
-  /* Исправление кнопок на мобильных */
-  button {
+  /* Принудительные размеры для iOS */
+  button, .btn-primary, .btn-secondary {
     min-height: 44px !important;
     min-width: 44px !important;
+    font-size: 16px !important; /* Предотвращает зум на iOS */
+    padding: 12px 16px !important;
   }
   
-  /* Исправление форм */
-  input, textarea, select {
+  /* Поля ввода */
+  input, textarea, select, .input-field {
     font-size: 16px !important; /* Предотвращает зум на iOS */
+    min-height: 44px !important;
+    padding: 12px 16px !important;
   }
-
-  /* Коллапсируемые блоки */
-  .mobile-collapse {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
-    overflow: hidden;
+  
+  /* Компактные отступы */
+  .container {
+    padding: 1rem !important;
   }
-
-  .mobile-collapse-header {
-    padding: 0.75rem;
-    background: #f9fafb;
-    border-bottom: 1px solid #e5e7eb;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-weight: 500;
-  }
-
-  .mobile-collapse-content {
-    padding: 0.75rem;
-    display: none;
-  }
-
-  .mobile-collapse-content.open {
-    display: block;
-  }
-
-  /* Сжатие элементов */
-  .text-3xl {
-    font-size: 1.5rem !important;
-  }
-
-  .text-2xl {
-    font-size: 1.25rem !important;
-  }
-
+  
   .p-6 {
     padding: 1rem !important;
   }
-
+  
   .p-4 {
     padding: 0.75rem !important;
   }
-
-  /* Скрытие элементов на мобильных */
-  .mobile-hidden {
-    display: none !important;
+  
+  /* Адаптивные заголовки */
+  .text-3xl {
+    font-size: 1.5rem !important;
   }
-
-  /* Показ только на мобильных */
-  .mobile-only {
-    display: block !important;
+  
+  .text-2xl {
+    font-size: 1.25rem !important;
   }
-
-  /* Адаптивная сетка для карточек */
-  .grid-cols-1 {
-    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
-  }
-
-  .md\:grid-cols-2 {
-    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
-  }
-
-  .lg\:grid-cols-3 {
-    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
-  }
-
-  .lg\:grid-cols-4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-}
-
-@media (max-width: 640px) {
-  /* Очень маленькие экраны */
-  .lg\:grid-cols-4 {
-    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
-  }
-
-  .w-64 {
-    width: 80px !important;
-  }
-
+  
   .text-xl {
     font-size: 1.125rem !important;
   }
-
-  .text-lg {
-    font-size: 1rem !important;
+  
+  /* Сетки становятся одноколоночными */
+  .grid-cols-2 {
+    grid-template-columns: 1fr !important;
   }
+  
+  .grid-cols-3 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  /* Карточки задач на мобильных */
+  .task-sticky {
+    padding: 12px !important;
+    margin-bottom: 8px !important;
+  }
+  
+  /* Боковая панель на мобильных */
+  .sidebar {
+    width: 100% !important;
+    max-width: 280px !important;
+  }
+  
+  /* Модальные окна на мобильных */
+  .modal-content {
+    margin: 0.5rem !important;
+    width: calc(100% - 1rem) !important;
+    max-height: calc(100vh - 1rem) !important;
+  }
+  
+  /* Поиск на мобильных */
+  .search-dropdown {
+    position: fixed !important;
+    top: 60px !important;
+    left: 0.5rem !important;
+    right: 0.5rem !important;
+    z-index: 50 !important;
+  }
+}
 
-  /* Компактные кнопки */
+/* Очень маленькие экраны */
+@media (max-width: 640px) {
+  .grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Еще более компактные кнопки */
   .btn-compact {
-    padding: 0.5rem 0.75rem !important;
-    font-size: 0.875rem !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    min-height: 36px !important;
   }
+}
+
+/* ==========================================================================
+   УТИЛИТАРНЫЕ КЛАССЫ
+   ========================================================================== */
+
+/* Ограничение текста */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* Состояния загрузки */
+.loading-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Эффекты наведения */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Эффект стекла */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Градиентные фоны */
+.gradient-blue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-green {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+}
+
+.gradient-purple {
+  background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%);
+}
+
+/* ==========================================================================
+   РЕДАКТОР QUILL
+   ========================================================================== */
+
+/* Стили для React Quill редактора */
+.ql-editor {
+  min-height: 350px !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  color: var(--gray-900) !important;
+}
+
+.ql-toolbar {
+  border-top: 1px solid var(--gray-200) !important;
+  border-left: 1px solid var(--gray-200) !important;
+  border-right: 1px solid var(--gray-200) !important;
+  border-bottom: none !important;
+  background: var(--gray-50) !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+.ql-container {
+  border-bottom: 1px solid var(--gray-200) !important;
+  border-left: 1px solid var(--gray-200) !important;
+  border-right: 1px solid var(--gray-200) !important;
+  border-top: none !important;
+  border-radius: 0 0 12px 12px !important;
+}
+
+.ql-snow .ql-tooltip {
+  z-index: 9999 !important;
+}
+
+/* Переменные в тексте редактора */
+.ql-editor .variable {
+  background-color: var(--primary-blue-light) !important;
+  color: var(--primary-blue) !important;
+  padding: 2px 6px !important;
+  border-radius: 6px !important;
+  font-family: 'Monaco', 'Menlo', monospace !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+/* ==========================================================================
+   ФИНАЛЬНЫЕ ИСПРАВЛЕНИЯ
+   ========================================================================== */
+
+/* Исправление z-index для всех выпадающих меню */
+.dropdown-menu {
+  z-index: 9999 !important;
+}
+
+/* Убираем синее выделение на мобильных */
+* {
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Плавная прокрутка */
+html {
+  scroll-behavior: smooth !important;
+}
+
+/* Улучшенные переходы для всех ссылок и кнопок */
+a, button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Фокус для accessibility */
+*:focus {
+  outline: 2px solid var(--primary-blue) !important;
+  outline-offset: 2px !important;
+}
+
+/* Убираем outline для мыши, оставляем для клавиатуры */
+*:focus:not(:focus-visible) {
+  outline: none !important;
 }
