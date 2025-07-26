@@ -51,10 +51,25 @@ export const useBoard = (projectId?: string) => {
   const moveTask = (taskId: string, destinationColumnId: string, destinationIndex: number) => {
     if (!user) return;
 
-    // Найдем задачу и определим новый статус
-    const task = allTasks.find(t => t.id === taskId);
-    if (!task) return;
+    // Найдем задачу в текущих колонках
+    let sourceTask: TaskWithDetails | undefined;
+    let sourceColumnIndex = -1;
+    let sourceTaskIndex = -1;
 
+    // Найдем задачу и ее текущую позицию
+    for (let i = 0; i < board.columns.length; i++) {
+      const taskIndex = board.columns[i].tasks.findIndex(t => t.id === taskId);
+      if (taskIndex !== -1) {
+        sourceTask = board.columns[i].tasks[taskIndex];
+        sourceColumnIndex = i;
+        sourceTaskIndex = taskIndex;
+        break;
+      }
+    }
+
+    if (!sourceTask) return;
+
+    // Определим новый статус
     let newStatus: Task['status'];
     switch (destinationColumnId) {
       case 'todo':
@@ -72,16 +87,44 @@ export const useBoard = (projectId?: string) => {
       default:
         newStatus = 'todo';
     }
-    
-    // Обновляем задачу в базе данных
+
+    // Создаем обновленную задачу
+    const updatedTask = { ...sourceTask, status: newStatus };
+
+    // Обновляем состояние доски синхронно
+    setBoard(prevBoard => {
+      const newColumns = [...prevBoard.columns];
+      
+      // Удаляем задачу из исходной колонки
+      newColumns[sourceColumnIndex] = {
+        ...newColumns[sourceColumnIndex],
+        tasks: newColumns[sourceColumnIndex].tasks.filter(t => t.id !== taskId)
+      };
+      
+      // Находим целевую колонку и добавляем задачу
+      const destinationColumnIndex = newColumns.findIndex(col => col.id === destinationColumnId);
+      if (destinationColumnIndex !== -1) {
+        const destinationTasks = [...newColumns[destinationColumnIndex].tasks];
+        destinationTasks.splice(destinationIndex, 0, updatedTask);
+        
+        newColumns[destinationColumnIndex] = {
+          ...newColumns[destinationColumnIndex],
+          tasks: destinationTasks
+        };
+      }
+      
+      return {
+        ...prevBoard,
+        columns: newColumns
+      };
+    });
+
+    // Обновляем задачу в базе данных (асинхронно, после обновления UI)
     db.updateTask(taskId, { status: newStatus }, user.id);
-    
-    // Перезагружаем все задачи
-    loadTasks();
   };
 
   const addTask = (task: Omit<TaskWithDetails, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!user || !projectId) return;
+    if (!task) return;
 
     const newTask = db.createTask({
       title: task.title,
