@@ -20,7 +20,7 @@ export const useAuth = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
 
   useEffect(() => {
     authLogger.info('Инициализация системы авторизации');
@@ -31,7 +31,9 @@ export const useAuth = () => {
     
     authLogger.info('Проверка конфигурации Supabase', { 
       hasUrl: !!supabaseUrl, 
-      hasKey: !!supabaseKey 
+      hasKey: !!supabaseKey,
+      url: supabaseUrl ? 'configured' : 'missing',
+      key: supabaseKey ? 'configured' : 'missing'
     });
     
     const configured = !!(supabaseUrl && supabaseKey);
@@ -40,37 +42,10 @@ export const useAuth = () => {
     if (configured) {
       initializeAuth();
     } else {
-      authLogger.error('Supabase не настроен');
-      checkDemoMode();
+      authLogger.error('Supabase не настроен - переход в демо режим');
+      enterDemoMode();
     }
   }, []);
-
-  const checkDemoMode = () => {
-    authLogger.info('Проверка демо режима');
-    const demoUser = localStorage.getItem('demo_user');
-    if (demoUser) {
-      try {
-        const userData = JSON.parse(demoUser);
-        authLogger.success('Демо пользователь найден', userData);
-        setUser(userData as User);
-        setProfile({
-          id: userData.id,
-          email: userData.email,
-          full_name: userData.full_name || 'Демо пользователь',
-          avatar_url: null,
-          role: 'member',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          telegram_id: null,
-          telegram_username: null
-        });
-      } catch (error) {
-        authLogger.error('Ошибка парсинга демо пользователя', error);
-        localStorage.removeItem('demo_user');
-      }
-    }
-    setLoading(false);
-  };
 
   const initializeAuth = async () => {
     try {
@@ -157,8 +132,8 @@ export const useAuth = () => {
         authLogger.info('Профиль не найден, создаем новый');
         
         const newProfile = {
-          id: user.id, // Уникальный ID от Supabase Auth
-          email: user.email || '', // Email как ключ для приглашений
+          id: user.id,
+          email: user.email || '',
           full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
           avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
           role: 'member'
@@ -182,7 +157,7 @@ export const useAuth = () => {
         setProfile(createdProfile);
       } else {
         authLogger.error('Неожиданная ошибка при загрузке профиля', fetchError);
-        setError(`Ошибка загрузки профиля: ${fetchError.message}`);
+        setError(`Ошибка загрузки профиля: ${fetchError?.message || 'Unknown error'}`);
       }
     } catch (err) {
       authLogger.error('Общая ошибка работы с профилем', err);
@@ -239,14 +214,13 @@ export const useAuth = () => {
           errorCode: error.message 
         });
         
-        // Улучшенная обработка ошибок авторизации
-        const errorMessage = error.message?.toLowerCase() || '';
+        const errorMessage = (error as any).message?.toLowerCase() || '';
         if (errorMessage.includes('invalid login credentials') || 
             errorMessage.includes('invalid_credentials') ||
             errorMessage.includes('invalid credentials')) {
           setError('Неверный email или пароль. Проверьте данные или зарегистрируйтесь.');
         } else {
-          setError(error.message || 'Ошибка входа');
+          setError((error as any).message || 'Ошибка входа');
         }
         return { error };
       }
@@ -269,20 +243,6 @@ export const useAuth = () => {
       authLogger.info('Попытка регистрации по email', { email, fullName });
       setError(null);
 
-      // Проверяем, не существует ли уже пользователь с таким email
-      authLogger.info('Проверка существования пользователя');
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('email', email)
-        .single();
-
-      if (existingProfile) {
-        authLogger.error('Пользователь уже существует', { email });
-        setError('Пользователь с таким email уже существует. Попробуйте войти.');
-        return { error: { message: 'User already exists' } };
-      }
-
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -296,12 +256,12 @@ export const useAuth = () => {
       if (error) {
         authLogger.error('Ошибка регистрации', error);
         
-        const errorMessage = error.message?.toLowerCase() || '';
+        const errorMessage = (error as any).message?.toLowerCase() || '';
         if (errorMessage.includes('user already registered') || 
             errorMessage.includes('already registered')) {
           setError('Пользователь с таким email уже существует. Попробуйте войти.');
         } else {
-          setError(error.message || 'Ошибка регистрации');
+          setError((error as any).message || 'Ошибка регистрации');
         }
         return { error };
       }
@@ -332,6 +292,7 @@ export const useAuth = () => {
         authLogger.success('Успешный выход из системы');
         setUser(null);
         setProfile(null);
+        setError(null);
       } else {
         authLogger.error('Ошибка выхода из системы', error);
       }
@@ -397,6 +358,7 @@ export const useAuth = () => {
       telegram_id: null,
       telegram_username: null
     });
+    setLoading(false);
     authLogger.success('Демо режим активирован');
   };
 
