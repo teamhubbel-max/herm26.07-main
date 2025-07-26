@@ -7,7 +7,7 @@ export const useAuth = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
 
   useEffect(() => {
     // Проверяем настройки Supabase
@@ -15,14 +15,10 @@ export const useAuth = () => {
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
     const configured = !!(supabaseUrl && supabaseKey);
-    setIsSupabaseConfigured(configured);
+    setIsSupabaseConfigured(true); // Всегда показываем форму
     
-    if (configured) {
-      initializeAuth();
-    } else {
-      // Если Supabase не настроен, проверяем демо режим
-      checkDemoMode();
-    }
+    // Всегда инициализируем авторизацию
+    initializeAuth();
   }, []);
 
   const checkDemoMode = () => {
@@ -97,7 +93,9 @@ export const useAuth = () => {
 
   const loadOrCreateProfile = async (user: User) => {
     try {
-      // Сначала пытаемся найти существующий профиль
+      console.log('Loading/creating profile for user:', user.email);
+      
+      // Пытаемся найти существующий профиль
       const { data: existingProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
@@ -105,8 +103,8 @@ export const useAuth = () => {
         .single();
 
       if (existingProfile) {
+        console.log('Existing profile found:', existingProfile);
         setProfile(existingProfile);
-        console.log('Profile loaded:', existingProfile);
         return;
       }
 
@@ -115,8 +113,8 @@ export const useAuth = () => {
         console.log('Creating new profile for user:', user.email);
         
         const newProfile = {
-          id: user.id,
-          email: user.email || '',
+          id: user.id, // Уникальный ID от Google/Supabase Auth
+          email: user.email || '', // Email как ключ для приглашений
           full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
           avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
           role: 'member'
@@ -130,15 +128,15 @@ export const useAuth = () => {
 
         if (createError) {
           console.error('Error creating profile:', createError);
-          setError('Ошибка создания профиля');
+          setError(`Ошибка создания профиля: ${createError.message}`);
           return;
         }
 
-        setProfile(createdProfile);
         console.log('Profile created successfully:', createdProfile);
+        setProfile(createdProfile);
       } else {
-        console.error('Error fetching profile:', fetchError);
-        setError('Ошибка загрузки профиля');
+        console.error('Unexpected error fetching profile:', fetchError);
+        setError(`Ошибка загрузки профиля: ${fetchError.message}`);
       }
     } catch (err) {
       console.error('Profile error:', err);
@@ -147,13 +145,7 @@ export const useAuth = () => {
   };
 
   const signInWithGoogle = async () => {
-    if (!isSupabaseConfigured) {
-      setError('Supabase не настроен');
-      return { error: { message: 'Supabase не настроен' } };
-    }
-
     try {
-      setLoading(true);
       setError(null);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -177,19 +169,11 @@ export const useAuth = () => {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка входа через Google';
       setError(errorMessage);
       return { error: { message: errorMessage } };
-    } finally {
-      setLoading(false);
     }
   };
 
   const signInWithEmail = async (email: string, password: string) => {
-    if (!isSupabaseConfigured) {
-      setError('Supabase не настроен');
-      return { error: { message: 'Supabase не настроен' } };
-    }
-
     try {
-      setLoading(true);
       setError(null);
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -207,19 +191,11 @@ export const useAuth = () => {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка входа';
       setError(errorMessage);
       return { error: { message: errorMessage } };
-    } finally {
-      setLoading(false);
     }
   };
 
   const signUpWithEmail = async (email: string, password: string, fullName?: string) => {
-    if (!isSupabaseConfigured) {
-      setError('Supabase не настроен');
-      return { error: { message: 'Supabase не настроен' } };
-    }
-
     try {
-      setLoading(true);
       setError(null);
 
       const { data, error } = await supabase.auth.signUp({
@@ -242,20 +218,12 @@ export const useAuth = () => {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка регистрации';
       setError(errorMessage);
       return { error: { message: errorMessage } };
-    } finally {
-      setLoading(false);
     }
   };
 
   const signOut = async () => {
     // Очищаем демо режим
     localStorage.removeItem('demo_user');
-    
-    if (!isSupabaseConfigured) {
-      setUser(null);
-      setProfile(null);
-      return { error: null };
-    }
     
     try {
       const { error } = await supabase.auth.signOut();
@@ -275,15 +243,10 @@ export const useAuth = () => {
   const updateProfile = async (updates: Partial<Profile>) => {
     try {
       if (!user) {
-        return { error: new Error('Пользователь не авторизован') };
+        throw new Error('Пользователь не авторизован');
       }
 
-      if (!isSupabaseConfigured) {
-        // Обновляем локальный профиль в демо режиме
-        const updatedProfile = { ...profile, ...updates } as Profile;
-        setProfile(updatedProfile);
-        return { data: updatedProfile, error: null };
-      }
+      console.log('Updating profile for user:', user.id, updates);
 
       const { data, error } = await supabase
         .from('profiles')
@@ -294,15 +257,18 @@ export const useAuth = () => {
 
       if (error) throw error;
 
+      console.log('Profile updated successfully:', data);
       setProfile(data);
       return { data, error: null };
     } catch (err) {
+      console.error('Error updating profile:', err);
       const errorMessage = err instanceof Error ? err.message : 'Ошибка обновления профиля';
       return { data: null, error: { message: errorMessage } };
     }
   };
 
   const enterDemoMode = () => {
+    console.log('Entering demo mode');
     const mockUser = {
       id: 'demo-user-' + Date.now(),
       email: 'demo@example.com',
