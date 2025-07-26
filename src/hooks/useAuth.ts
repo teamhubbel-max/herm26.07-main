@@ -183,10 +183,11 @@ export const useAuth = () => {
 
       if (error) {
         // Улучшенная обработка ошибок авторизации
-        if (error.message.includes('Invalid login credentials')) {
+        const errorMessage = (error as any).message?.toLowerCase() || '';
+        if (errorMessage.includes('invalid login credentials') || errorMessage.includes('invalid_credentials')) {
           setError('Неверный email или пароль. Проверьте данные или зарегистрируйтесь.');
         } else {
-          setError(error.message);
+          setError((error as any).message || 'Ошибка входа');
         }
         return { error };
       }
@@ -215,10 +216,11 @@ export const useAuth = () => {
 
       if (error) {
         // Улучшенная обработка ошибок регистрации
-        if (error.message.includes('User already registered')) {
+        const errorMessage = (error as any).message?.toLowerCase() || '';
+        if (errorMessage.includes('user already registered') || errorMessage.includes('already registered')) {
           setError('Пользователь с таким email уже существует. Попробуйте войти.');
         } else {
-          setError(error.message);
+          setError((error as any).message || 'Ошибка регистрации');
         }
         return { error };
       }
