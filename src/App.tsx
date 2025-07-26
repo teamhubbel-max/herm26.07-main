@@ -66,6 +66,12 @@ function App() {
           </div>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
           <p className="text-gray-600 mt-4">Загрузка...</p>
+          {error && (
+            <p className="text-red-600 mt-2 text-sm">{error}</p>
+          )}
+          {!isSupabaseConfigured && (
+            <p className="text-orange-600 mt-2 text-sm">Работа в автономном режиме</p>
+          )}
         </div>
       </div>
     );

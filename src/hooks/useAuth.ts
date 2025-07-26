@@ -11,6 +11,12 @@ export const useAuth = () => {
   const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
 
   useEffect(() => {
+    // Добавляем timeout для избежания бесконечной загрузки
+    const loadingTimeout = setTimeout(() => {
+      console.log('Loading timeout reached, forcing loading to false');
+      setLoading(false);
+    }, 5000); // 5 секунд timeout
+
     // Проверяем, настроен ли Supabase
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -19,6 +25,7 @@ export const useAuth = () => {
       console.log('Supabase not configured, using local database');
       setIsSupabaseConfigured(false);
       setLoading(false);
+      clearTimeout(loadingTimeout);
       return;
     }
     
@@ -36,29 +43,47 @@ export const useAuth = () => {
       } catch (err) {
         console.error('Error getting session:', err);
         setError('Ошибка подключения к серверу');
+        // Если Supabase не работает, переключаемся в локальный режим
+        setIsSupabaseConfigured(false);
       } finally {
         setLoading(false);
+        clearTimeout(loadingTimeout);
       }
     };
 
     getInitialSession();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          await loadProfile(session.user.id);
-        } else {
-          setProfile(null);
+    let subscription: any = null;
+    
+    try {
+      const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          setUser(session?.user ?? null);
+          
+          if (session?.user) {
+            await loadProfile(session.user.id);
+          } else {
+            setProfile(null);
+          }
+          
+          setLoading(false);
+          clearTimeout(loadingTimeout);
         }
-        
-        setLoading(false);
-      }
-    );
+      );
+      subscription = authSubscription;
+    } catch (err) {
+      console.error('Error setting up auth listener:', err);
+      setLoading(false);
+      clearTimeout(loadingTimeout);
+    }
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(loadingTimeout);
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
 
   // Локальная аутентификация для демо
@@ -131,6 +156,10 @@ export const useAuth = () => {
   };
 
   const loadProfile = async (userId: string) => {
+    if (!isSupabaseConfigured) {
+      return;
+    }
+    
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
