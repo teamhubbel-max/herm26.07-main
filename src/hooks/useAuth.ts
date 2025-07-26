@@ -42,8 +42,8 @@ export const useAuth = () => {
     if (configured) {
       initializeAuth();
     } else {
-      authLogger.error('Supabase не настроен - переход в демо режим');
-      enterDemoMode();
+      authLogger.error('Supabase не настроен');
+      setLoading(false);
     }
   }, []);
 
@@ -165,38 +165,6 @@ export const useAuth = () => {
     }
   };
 
-  const signInWithGoogle = async () => {
-    try {
-      authLogger.info('Попытка входа через Google');
-      setError(null);
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-
-      if (error) {
-        authLogger.error('Ошибка входа через Google', error);
-        setError(error.message);
-        return { error };
-      }
-
-      authLogger.success('Успешный запрос входа через Google', data);
-      return { data, error: null };
-    } catch (err) {
-      authLogger.error('Исключение при входе через Google', err);
-      const errorMessage = err instanceof Error ? err.message : 'Ошибка входа через Google';
-      setError(errorMessage);
-      return { error: { message: errorMessage } };
-    }
-  };
-
   const signInWithEmail = async (email: string, password: string) => {
     try {
       authLogger.info('Попытка входа по email', { email });
@@ -282,9 +250,6 @@ export const useAuth = () => {
   const signOut = async () => {
     authLogger.info('Попытка выхода из системы');
     
-    // Очищаем демо режим
-    localStorage.removeItem('demo_user');
-    
     try {
       const { error } = await supabase.auth.signOut();
       
@@ -335,44 +300,15 @@ export const useAuth = () => {
     }
   };
 
-  const enterDemoMode = () => {
-    authLogger.info('Вход в демо режим');
-    const mockUser = {
-      id: 'demo-user-' + Date.now(),
-      email: 'demo@example.com',
-      user_metadata: {
-        full_name: 'Демо Пользователь'
-      }
-    };
-    
-    localStorage.setItem('demo_user', JSON.stringify(mockUser));
-    setUser(mockUser as User);
-    setProfile({
-      id: mockUser.id,
-      email: mockUser.email,
-      full_name: 'Демо Пользователь',
-      avatar_url: null,
-      role: 'member',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      telegram_id: null,
-      telegram_username: null
-    });
-    setLoading(false);
-    authLogger.success('Демо режим активирован');
-  };
-
   return {
     user,
     profile,
     loading,
     error,
     isSupabaseConfigured,
-    signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
     signOut,
     updateProfile,
-    enterDemoMode,
   };
 };
