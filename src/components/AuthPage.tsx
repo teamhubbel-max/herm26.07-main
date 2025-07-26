@@ -1,10 +1,26 @@
 import React, { useState } from 'react';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export const AuthPage: React.FC = () => {
-  const { signInWithGoogle, loading, error, isSupabaseConfigured, enterDemoMode } = useAuth();
+  const { 
+    signInWithGoogle, 
+    signInWithEmail, 
+    signUpWithEmail, 
+    loading, 
+    error, 
+    isSupabaseConfigured, 
+    enterDemoMode 
+  } = useAuth();
+  
+  const [isSignUp, setIsSignUp] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    fullName: ''
+  });
 
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
@@ -15,6 +31,33 @@ export const AuthPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Sign in error:', error);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    
+    try {
+      if (isSignUp) {
+        const { error } = await signUpWithEmail(
+          formData.email, 
+          formData.password, 
+          formData.fullName
+        );
+        if (error) {
+          console.error('Sign up error:', error);
+        }
+      } else {
+        const { error } = await signInWithEmail(formData.email, formData.password);
+        if (error) {
+          console.error('Sign in error:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Auth error:', error);
     } finally {
       setAuthLoading(false);
     }
@@ -34,10 +77,13 @@ export const AuthPage: React.FC = () => {
           </div>
           
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Добро пожаловать в Гермес
+            {isSignUp ? 'Создать аккаунт' : 'Добро пожаловать в Гермес'}
           </h1>
           <p className="text-gray-600">
-            Система управления проектами для современных команд
+            {isSignUp 
+              ? 'Зарегистрируйтесь для начала работы'
+              : 'Система управления проектами для современных команд'
+            }
           </p>
         </div>
 
@@ -54,12 +100,6 @@ export const AuthPage: React.FC = () => {
                 </div>
               </div>
             )}
-
-            {/* Google Auth Section */}
-            <div className="text-center mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Вход в систему</h2>
-              <p className="text-gray-600">Используйте Google аккаунт для безопасного входа</p>
-            </div>
 
             {/* Google Auth Button */}
             <button
@@ -83,6 +123,103 @@ export const AuthPage: React.FC = () => {
               )}
             </button>
 
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">или</span>
+              </div>
+            </div>
+
+            {/* Email/Password Form */}
+            <form onSubmit={handleEmailAuth} className="space-y-4">
+              {isSignUp && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Полное имя
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      value={formData.fullName}
+                      onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Введите ваше имя"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email адрес
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="your@email.com"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Пароль
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Введите пароль"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={authLoading || loading}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-4 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              >
+                {authLoading || loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <span>{isSignUp ? 'Создать аккаунт' : 'Войти'}</span>
+                )}
+              </button>
+            </form>
+
+            {/* Toggle Sign In/Up */}
+            <div className="text-center">
+              <button
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                {isSignUp 
+                  ? 'Уже есть аккаунт? Войти' 
+                  : 'Нет аккаунта? Зарегистрироваться'
+                }
+              </button>
+            </div>
+
             {/* Supabase Status */}
             {!isSupabaseConfigured && (
               <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
@@ -91,7 +228,7 @@ export const AuthPage: React.FC = () => {
                   <div>
                     <h3 className="text-sm font-medium text-yellow-800">Требуется настройка</h3>
                     <p className="text-sm text-yellow-700 mt-1">
-                      Google OAuth требует настройки Supabase. Подключите базу данных для полноценной работы.
+                      Авторизация требует настройки Supabase. Подключите базу данных для полноценной работы.
                     </p>
                   </div>
                 </div>

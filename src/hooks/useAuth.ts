@@ -106,6 +106,7 @@ export const useAuth = () => {
 
       if (existingProfile) {
         setProfile(existingProfile);
+        console.log('Profile loaded:', existingProfile);
         return;
       }
 
@@ -174,6 +175,71 @@ export const useAuth = () => {
       return { data, error: null };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка входа через Google';
+      setError(errorMessage);
+      return { error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) {
+      setError('Supabase не настроен');
+      return { error: { message: 'Supabase не настроен' } };
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+        return { error };
+      }
+
+      return { data, error: null };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка входа';
+      setError(errorMessage);
+      return { error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string, fullName?: string) => {
+    if (!isSupabaseConfigured) {
+      setError('Supabase не настроен');
+      return { error: { message: 'Supabase не настроен' } };
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName || '',
+          }
+        }
+      });
+
+      if (error) {
+        setError(error.message);
+        return { error };
+      }
+
+      return { data, error: null };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка регистрации';
       setError(errorMessage);
       return { error: { message: errorMessage } };
     } finally {
@@ -267,6 +333,8 @@ export const useAuth = () => {
     error,
     isSupabaseConfigured,
     signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
     signOut,
     updateProfile,
     enterDemoMode,
