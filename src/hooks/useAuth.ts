@@ -1,148 +1,93 @@
 import { useState, useEffect } from 'react';
-import { supabase, Profile } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
+
+interface Profile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: string;
+  created_at: string;
+  updated_at: string;
+}
 
 /**
  * ==========================================================================
  * ХУК АВТОРИЗАЦИИ (useAuth)
  * ==========================================================================
  * 
- * Центральный хук для управления авторизацией пользователей.
- * Поддерживает только email/password авторизацию через Supabase.
+ * Простой и надежный хук авторизации с минимальной логикой.
+ * Поддерживает только email/password авторизацию.
  * 
  * ФУНКЦИОНАЛЬНОСТЬ:
  * - Вход по email и паролю
- * - Регистрация новых пользователей
+ * - Регистрация новых пользователей  
  * - Автоматическое создание профиля
- * - Выход из системы с очисткой данных
- * - Обновление профиля пользователя
- * 
- * БЕЗОПАСНОСТЬ:
- * - Проверка конфигурации Supabase
- * - Валидация входных данных
- * - Подробное логирование всех операций
- * - Обработка всех типов ошибок
+ * - Выход из системы
+ * - Обновление профиля
  * 
  * СОСТОЯНИЕ:
- * - loading: процесс авторизации
- * - user: данные пользователя Supabase
- * - profile: расширенный профиль пользователя
+ * - user: данные пользователя из Supabase Auth
+ * - profile: профиль пользователя из таблицы profiles
+ * - loading: состояние загрузки
  * - error: сообщение об ошибке
- * - isSupabaseConfigured: статус настройки Supabase
  */
-// Детальное логирование для отладки
-const authLogger = {
-  info: (message: string, data?: any) => {
-    console.log(`🔐 AUTH INFO: ${message}`, data);
-  },
-  error: (message: string, error?: any) => {
-    console.error(`❌ AUTH ERROR: ${message}`, error);
-  },
-  success: (message: string, data?: any) => {
-    console.log(`✅ AUTH SUCCESS: ${message}`, data);
-  }
-};
-
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
 
   useEffect(() => {
-    authLogger.info('Инициализация системы авторизации');
-    
-    // Проверяем настройки Supabase
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    authLogger.info('Проверка конфигурации Supabase', { 
-      hasUrl: !!supabaseUrl, 
-      hasKey: !!supabaseKey,
-      url: supabaseUrl ? 'configured' : 'missing',
-      key: supabaseKey ? 'configured' : 'missing'
-    });
-    
-    const configured = !!(supabaseUrl && supabaseKey);
-    setIsSupabaseConfigured(configured);
-    
-    if (configured) {
-      initializeAuth();
-    } else {
-      authLogger.error('Supabase не настроен');
-      setLoading(false);
-    }
+    initializeAuth();
   }, []);
 
   const initializeAuth = async () => {
     try {
-      authLogger.info('Начало инициализации авторизации');
-      setLoading(true);
+      console.log('🔐 AUTH: Инициализация авторизации');
       
       // Получаем текущую сессию
-      authLogger.info('Получение текущей сессии');
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (sessionError) {
-        authLogger.error('Ошибка получения сессии', sessionError);
-        setError('Ошибка получения сессии');
-        setLoading(false);
-        return;
-      }
-
       if (session?.user) {
-        authLogger.success('Активная сессия найдена', { 
-          userId: session.user.id, 
-          email: session.user.email 
-        });
+        console.log('✅ AUTH: Найдена активная сессия:', session.user.email);
         setUser(session.user);
-        await loadOrCreateProfile(session.user);
+        await loadUserProfile(session.user);
       } else {
-        authLogger.info('Активная сессия не найдена');
+        console.log('ℹ️ AUTH: Активная сессия не найдена');
       }
 
-      // Подписываемся на изменения авторизации
-      authLogger.info('Подписка на изменения авторизации');
+      // Подписываемся на изменения
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
-          authLogger.info('Изменение состояния авторизации', { 
-            event, 
-            userId: session?.user?.id,
-            email: session?.user?.email 
-          });
+          console.log('🔄 AUTH: Изменение состояния:', event);
           
           if (session?.user) {
             setUser(session.user);
-            await loadOrCreateProfile(session.user);
+            await loadUserProfile(session.user);
           } else {
             setUser(null);
             setProfile(null);
           }
+          setError(null);
         }
       );
 
-      return () => {
-        authLogger.info('Отписка от изменений авторизации');
-        subscription.unsubscribe();
-      };
+      return () => subscription.unsubscribe();
     } catch (err) {
-      authLogger.error('Ошибка инициализации авторизации', err);
+      console.error('❌ AUTH: Ошибка инициализации:', err);
       setError('Ошибка инициализации авторизации');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadOrCreateProfile = async (user: User) => {
+  const loadUserProfile = async (user: User) => {
     try {
-      authLogger.info('Загрузка/создание профиля пользователя', { 
-        userId: user.id, 
-        email: user.email 
-      });
+      console.log('👤 AUTH: Загрузка профиля пользователя');
       
-      // Пытаемся найти существующий профиль
-      authLogger.info('Поиск существующего профиля');
+      // Ищем существующий профиль
       const { data: existingProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
@@ -150,24 +95,22 @@ export const useAuth = () => {
         .single();
 
       if (existingProfile) {
-        authLogger.success('Существующий профиль найден', existingProfile);
+        console.log('✅ AUTH: Профиль найден');
         setProfile(existingProfile);
         return;
       }
 
-      // Если профиль не найден, создаем новый
+      // Создаем новый профиль если не существует
       if (fetchError?.code === 'PGRST116') {
-        authLogger.info('Профиль не найден, создаем новый');
+        console.log('📝 AUTH: Создание нового профиля');
         
         const newProfile = {
           id: user.id,
           email: user.email || '',
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
-          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+          full_name: user.user_metadata?.full_name || '',
+          avatar_url: user.user_metadata?.avatar_url || null,
           role: 'member'
         };
-
-        authLogger.info('Данные нового профиля', newProfile);
 
         const { data: createdProfile, error: createError } = await supabase
           .from('profiles')
@@ -176,124 +119,116 @@ export const useAuth = () => {
           .single();
 
         if (createError) {
-          authLogger.error('Ошибка создания профиля', createError);
-          setError(`Ошибка создания профиля: ${createError.message}`);
-          return;
+          console.error('❌ AUTH: Ошибка создания профиля:', createError);
+          throw createError;
         }
 
-        authLogger.success('Профиль успешно создан', createdProfile);
+        console.log('✅ AUTH: Профиль создан');
         setProfile(createdProfile);
       } else {
-        authLogger.error('Неожиданная ошибка при загрузке профиля', fetchError);
-        setError(`Ошибка загрузки профиля: ${fetchError?.message || 'Unknown error'}`);
+        throw fetchError;
       }
     } catch (err) {
-      authLogger.error('Общая ошибка работы с профилем', err);
-      setError('Ошибка работы с профилем');
+      console.error('❌ AUTH: Ошибка работы с профилем:', err);
+      setError('Ошибка загрузки профиля пользователя');
     }
   };
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      authLogger.info('Попытка входа по email', { email });
+      console.log('🔑 AUTH: Попытка входа:', email);
       setError(null);
+      setLoading(true);
 
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: email.trim(),
+        password
       });
 
       if (error) {
-        authLogger.error('Ошибка входа по email', { 
-          error, 
-          email,
-          errorCode: error.message 
-        });
+        console.error('❌ AUTH: Ошибка входа:', error.message);
         
-        const errorMessage = (error as any).message?.toLowerCase() || '';
-        if (errorMessage.includes('invalid login credentials') || 
-            errorMessage.includes('invalid_credentials') ||
-            errorMessage.includes('invalid credentials')) {
+        if (error.message.includes('Invalid login credentials')) {
           setError('Неверный email или пароль. Проверьте данные или зарегистрируйтесь.');
         } else {
-          setError((error as any).message || 'Ошибка входа');
+          setError(error.message);
         }
         return { error };
       }
 
-      authLogger.success('Успешный вход по email', { 
-        userId: data.user?.id, 
-        email: data.user?.email 
-      });
+      console.log('✅ AUTH: Успешный вход');
       return { data, error: null };
     } catch (err) {
-      authLogger.error('Исключение при входе по email', err);
+      console.error('❌ AUTH: Исключение при входе:', err);
       const errorMessage = err instanceof Error ? err.message : 'Ошибка входа';
       setError(errorMessage);
       return { error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
     }
   };
 
   const signUpWithEmail = async (email: string, password: string, fullName?: string) => {
     try {
-      authLogger.info('Попытка регистрации по email', { email, fullName });
+      console.log('📝 AUTH: Попытка регистрации:', email);
       setError(null);
+      setLoading(true);
 
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
         options: {
           data: {
-            full_name: fullName || '',
+            full_name: fullName?.trim() || ''
           }
         }
       });
 
       if (error) {
-        authLogger.error('Ошибка регистрации', error);
+        console.error('❌ AUTH: Ошибка регистрации:', error.message);
         
-        const errorMessage = (error as any).message?.toLowerCase() || '';
-        if (errorMessage.includes('user already registered') || 
-            errorMessage.includes('already registered')) {
+        if (error.message.includes('User already registered')) {
           setError('Пользователь с таким email уже существует. Попробуйте войти.');
         } else {
-          setError((error as any).message || 'Ошибка регистрации');
+          setError(error.message);
         }
         return { error };
       }
 
-      authLogger.success('Успешная регистрация', { 
-        userId: data.user?.id, 
-        email: data.user?.email 
-      });
+      console.log('✅ AUTH: Успешная регистрация');
       return { data, error: null };
     } catch (err) {
-      authLogger.error('Исключение при регистрации', err);
+      console.error('❌ AUTH: Исключение при регистрации:', err);
       const errorMessage = err instanceof Error ? err.message : 'Ошибка регистрации';
       setError(errorMessage);
       return { error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
     }
   };
 
   const signOut = async () => {
-    authLogger.info('Попытка выхода из системы');
-    
     try {
+      console.log('🚪 AUTH: Выход из системы');
+      
       const { error } = await supabase.auth.signOut();
       
-      if (!error) {
-        authLogger.success('Успешный выход из системы');
-        setUser(null);
-        setProfile(null);
-        setError(null);
-      } else {
-        authLogger.error('Ошибка выхода из системы', error);
+      if (error) {
+        console.error('❌ AUTH: Ошибка выхода:', error);
+        setError('Ошибка выхода из системы');
+        return { error };
       }
+
+      console.log('✅ AUTH: Успешный выход');
+      setUser(null);
+      setProfile(null);
+      setError(null);
       
-      return { error };
+      return { error: null };
     } catch (err) {
-      authLogger.error('Исключение при выходе', err);
+      console.error('❌ AUTH: Исключение при выходе:', err);
       const errorMessage = err instanceof Error ? err.message : 'Ошибка выхода';
+      setError(errorMessage);
       return { error: { message: errorMessage } };
     }
   };
@@ -304,7 +239,7 @@ export const useAuth = () => {
         throw new Error('Пользователь не авторизован');
       }
 
-      authLogger.info('Обновление профиля', { userId: user.id, updates });
+      console.log('👤 AUTH: Обновление профиля');
 
       const { data, error } = await supabase
         .from('profiles')
@@ -314,16 +249,17 @@ export const useAuth = () => {
         .single();
 
       if (error) {
-        authLogger.error('Ошибка обновления профиля', error);
+        console.error('❌ AUTH: Ошибка обновления профиля:', error);
         throw error;
       }
 
-      authLogger.success('Профиль успешно обновлен', data);
+      console.log('✅ AUTH: Профиль обновлен');
       setProfile(data);
       return { data, error: null };
     } catch (err) {
-      authLogger.error('Исключение при обновлении профиля', err);
+      console.error('❌ AUTH: Исключение при обновлении профиля:', err);
       const errorMessage = err instanceof Error ? err.message : 'Ошибка обновления профиля';
+      setError(errorMessage);
       return { data: null, error: { message: errorMessage } };
     }
   };
@@ -333,10 +269,9 @@ export const useAuth = () => {
     profile,
     loading,
     error,
-    isSupabaseConfigured,
     signInWithEmail,
     signUpWithEmail,
     signOut,
-    updateProfile,
+    updateProfile
   };
 };
