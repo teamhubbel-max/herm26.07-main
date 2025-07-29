@@ -50,40 +50,27 @@ export const useProjects = () => {
         .from('projects')
         .select(`
           *,
+          project_members!inner (
+            role,
+            user_id,
+            profile:profiles (
+              id,
+              full_name,
+              avatar_url
+            )
+          ),
           owner:profiles!projects_owner_id_fkey (
             full_name,
             avatar_url
           )
-        `);
+        `)
+        .eq('project_members.user_id', user.id);
 
       if (projectsError) throw projectsError;
 
-      // Get project members separately to avoid recursion
-      const { data: membersData, error: membersError } = await supabase
-        .from('project_members')
-        .select(`
-          project_id,
-          role,
-          user_id,
-          profile:profiles (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('user_id', user.id);
-
-      if (membersError) throw membersError;
-
-      // Filter projects where user is a member
-      const userProjectIds = membersData?.map(m => m.project_id) || [];
-      const userProjects = (projectsData || []).filter(project => 
-        userProjectIds.includes(project.id) || project.owner_id === user.id
-      );
-
       // Get task statistics for each project
       const projectsWithStats = await Promise.all(
-        userProjects.map(async (project) => {
+        (projectsData || []).map(async (project) => {
           const { data: tasksData } = await supabase
             .from('tasks')
             .select('id, status')
@@ -93,25 +80,12 @@ export const useProjects = () => {
           const completedTasksCount = tasksData?.filter(t => t.status === 'done').length || 0;
           const progress = tasksCount > 0 ? Math.round((completedTasksCount / tasksCount) * 100) : 0;
 
-          // Get all project members
-          const { data: allMembersData } = await supabase
-            .from('project_members')
-            .select(`
-              role,
-              user_id,
-              profile:profiles (
-                id,
-                full_name,
-                avatar_url
-              )
-            `)
-            .eq('project_id', project.id);
+          // Get user's role in this project
+          const userMember = project.project_members.find((member: any) => member.user_id === user.id);
+          const userRole = userMember?.role || 'member';
 
-          // Get user's role and all members
-          const userMember = (allMembersData || []).find((member: any) => member.user_id === user.id);
-          const userRole = userMember?.role || (project.owner_id === user.id ? 'owner' : 'member');
-          
-          const members = (allMembersData || []).map((member: any) => ({
+          // Get all members
+          const members = project.project_members.map((member: any) => ({
             id: member.profile.id,
             name: member.profile.full_name,
             avatar: member.profile.avatar_url
@@ -124,7 +98,7 @@ export const useProjects = () => {
             updatedAt: new Date(project.updated_at),
             lastActivity: new Date(project.last_activity),
             hasNotifications: false,
-            membersCount: allMembersData?.length || 0,
+            membersCount: project.project_members.length,
             tasksCount,
             completedTasks: completedTasksCount,
             progress,
