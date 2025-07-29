@@ -84,6 +84,75 @@ export const useAuth = () => {
     };
   }, [isSupabaseConfigured]);
 
+  // Локальная аутентификация для демо
+  const localSignIn = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Создаем локального пользователя для демо
+      const localUser = {
+        id: 'demo-user-' + Date.now(),
+        email,
+        user_metadata: { full_name: 'Демо Пользователь' }
+      };
+
+      const localProfile = {
+        id: localUser.id,
+        email: localUser.email,
+        full_name: localUser.user_metadata.full_name,
+        role: 'member',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      setUser(localUser as any);
+      setProfile(localProfile as any);
+      
+      return { data: { user: localUser }, error: null };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка входа';
+      setError(errorMessage);
+      return { data: null, error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const localSignUp = async (email: string, password: string, fullName: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Создаем локального пользователя для демо
+      const localUser = {
+        id: 'demo-user-' + Date.now(),
+        email,
+        user_metadata: { full_name: fullName }
+      };
+
+      const localProfile = {
+        id: localUser.id,
+        email: localUser.email,
+        full_name: fullName,
+        role: 'member',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      setUser(localUser as any);
+      setProfile(localProfile as any);
+      
+      return { data: { user: localUser }, error: null };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка регистрации';
+      setError(errorMessage);
+      return { data: null, error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadProfile = async (userId: string) => {
     if (!isSupabaseConfigured) {
       return;
@@ -119,6 +188,59 @@ export const useAuth = () => {
     } catch (err) {
       console.error('Error loading profile:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  };
+
+  const signUp = async (email: string, password: string, fullName: string) => {
+    if (!isSupabaseConfigured) {
+      return localSignUp(email, password, fullName);
+    }
+    
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName
+          }
+        }
+      });
+
+      return { data, error };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка регистрации';
+      setError(errorMessage);
+      return { data: null, error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signIn = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) {
+      return localSignIn(email, password);
+    }
+    
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      return { data, error };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка входа';
+      setError(errorMessage);
+      return { data: null, error: { message: errorMessage } };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -174,6 +296,8 @@ export const useAuth = () => {
     loading,
     error,
     isSupabaseConfigured,
+    signUp,
+    signIn,
     signOut,
     updateProfile,
   };
