@@ -2,37 +2,6 @@ import { useState, useEffect } from 'react';
 import { supabase, Task } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { telegramNotificationService } from '../services/telegramNotifications';
-/**
- * ==========================================================================
- * ХУК УПРАВЛЕНИЯ ДОСКОЙ ЗАДАЧ (useBoard)
- * ==========================================================================
- * 
- * Хук для управления Kanban доской с задачами проекта.
- * Поддерживает как Supabase, так и локальный режим работы.
- * 
- * ФУНКЦИОНАЛЬНОСТЬ:
- * - Загрузка задач проекта с деталями
- * - Перемещение задач между колонками (drag & drop)
- * - Создание новых задач
- * - Обновление существующих задач
- * - Удаление задач
- * - Добавление комментариев
- * 
- * СТРУКТУРА ДОСКИ:
- * - todo: К выполнению (холодильник)
- * - inprogress: В работе (сделать)
- * - inprogress2: В работе 2 (дополнительная колонка)
- * - done: Выполнено
- * 
- * РЕЖИМЫ РАБОТЫ:
- * - Supabase: полная функциональность с базой данных
- * - Локальный: работа без сервера (для демо)
- * 
- * УВЕДОМЛЕНИЯ:
- * - Telegram уведомления при назначении задач
- * - Уведомления о завершении задач
- * - Интеграция с telegramNotificationService
- */
 
 interface BoardColumn {
   id: string;
@@ -206,48 +175,7 @@ export const useBoard = (projectId?: string) => {
   };
 
   const addTask = async (task: Omit<TaskWithDetails, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!user) return;
-    
-    console.log('➕ ADD TASK:', { task, projectId, isSupabaseConfigured });
-
-    // Если Supabase не настроен, работаем локально
-    if (!isSupabaseConfigured) {
-      console.log('📱 LOCAL MODE: Adding task locally');
-      
-      const newTask: TaskWithDetails = {
-        id: crypto.randomUUID(),
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        priority: task.priority,
-        category: task.category,
-        project_id: projectId || 'local-project',
-        assignee_id: null,
-        created_by: user.id,
-        due_date: task.dueDate?.toISOString() || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        dueDate: task.dueDate,
-        assignee: task.assignee
-      };
-
-      // Добавляем в локальное состояние
-      setBoard(prev => ({
-        ...prev,
-        columns: prev.columns.map(column => 
-          column.status === task.status 
-            ? { ...column, tasks: [newTask, ...column.tasks] }
-            : column
-        )
-      }));
-      
-      console.log('✅ Task added locally:', newTask);
-      return;
-    }
-
-    if (!projectId) return;
+    if (!user || !projectId || !isSupabaseConfigured) return;
 
     try {
       // Check for assignee if provided

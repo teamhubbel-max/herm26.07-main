@@ -4,33 +4,6 @@ import { AddTaskModal } from './AddTaskModal';
 import { Task } from '../types/Task';
 import { useAuth } from '../hooks/useAuth';
 import { InvitationsPanel } from './InvitationsPanel';
-/**
- * ==========================================================================
- * ЗАГОЛОВОК ПРИЛОЖЕНИЯ (HEADER)
- * ==========================================================================
- * 
- * Верхняя панель навигации с поиском, кнопками действий и профилем пользователя.
- * Содержит глобальные элементы управления доступные на всех страницах.
- * 
- * ФУНКЦИОНАЛЬНОСТЬ:
- * - Глобальный поиск по задачам с автодополнением
- * - Быстрое создание задач
- * - Меню пользователя с выходом
- * - Индикатор уведомлений
- * 
- * ПОИСК:
- * - Поиск от 2 символов
- * - Поиск по названию, описанию, категории, исполнителю
- * - Выпадающий список с результатами
- * - Подсветка приоритета и статуса
- * - Кнопка перехода к проекту
- * 
- * ДИЗАЙН:
- * - Стеклянный эффект background
- * - Градиентные кнопки
- * - Анимированные переходы
- * - Адаптивное скрытие элементов на мобильных
- */
 import { db } from '../lib/database';
 
 interface HeaderProps {
@@ -69,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Фильтруем задачи по поисковому запросу
   const filteredTasks = allTasks.filter(task => 
-    searchTerm.length >= 2 && (
+    searchTerm.length > 0 && (
       task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -78,13 +51,11 @@ export const Header: React.FC<HeaderProps> = ({
   ).slice(0, 5); // Показываем максимум 5 результатов
 
   const handleSearchChange = (value: string) => {
-    console.log('🔍 SEARCH: Search term changed to:', value);
     onSearchChange(value);
     setShowSearchDropdown(value.length >= 2); // Показываем после 2 символов
   };
 
   const handleTaskSelect = (task: Task) => {
-    console.log('🎯 SEARCH: Task selected:', task);
     setShowSearchDropdown(false);
     onSearchChange('');
     if (onTaskSelect) {
