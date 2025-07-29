@@ -15,7 +15,7 @@ import { useDocuments } from './hooks/useDocuments';
 import { useAuth } from './hooks/useAuth';
 
 function App() {
-  const { user, profile, loading, error, isSupabaseConfigured } = useAuth();
+  const { user, loading, error, isSupabaseConfigured } = useAuth();
   
   const {
     projects,
@@ -56,21 +56,30 @@ function App() {
     getTaskComments
   } = useBoard(currentProjectId || undefined);
   
-  // Show loading spinner while checking auth
+  // Show loading spinner while checking authentication
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 mx-auto">
             <span className="text-white font-bold text-2xl">H</span>
           </div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Загрузка...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="text-gray-600 mt-4">Загрузка...</p>
         </div>
       </div>
     );
   }
-  
+
+  // Show error or fallback info if needed
+  if (error && !user) {
+    console.log('Auth error:', error);
+  }
+
+  if (!isSupabaseConfigured && !user) {
+    console.log('Working in local mode without authentication');
+  }
+
   // Show auth page if user is not authenticated
   if (!user) {
     return <AuthPage />;
