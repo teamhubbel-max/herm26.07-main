@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, MessageCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { TelegramVerificationModal } from './TelegramVerificationModal';
 
 export const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(false);
-  const [showTelegramModal, setShowTelegramModal] = useState(false);
-  const [registeredEmail, setRegisteredEmail] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -18,17 +15,11 @@ export const AuthPage: React.FC = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { signIn, signUp, isSupabaseConfigured } = useAuth();
+  const { signIn, signUp } = useAuth();
 
   const handleGoogleSignIn = async () => {
-    if (!isSupabaseConfigured) {
-      setErrors({ general: 'Google OAuth доступен только с настроенной базой данных' });
-      return;
-    }
-    
     try {
       setLoading(true);
-      const { supabase } = await import('../lib/supabase');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -47,28 +38,20 @@ export const AuthPage: React.FC = () => {
   };
 
   const handleTelegramAuth = async () => {
-    if (!formData.email) {
-      setErrors({ general: 'Сначала введите email адрес' });
-      return;
-    }
-    
     try {
       setTelegramLoading(true);
+      // Здесь будет интеграция с Telegram Bot
+      // Открываем Telegram бот для регистрации
+      const botUsername = 'hermes_project_bot'; // Замените на ваш бот
+      const telegramUrl = `https://t.me/${botUsername}?start=register`;
+      window.open(telegramUrl, '_blank');
       
-      // Сначала регистрируем пользователя
-      const { data, error } = await signUp(formData.email, '', formData.fullName || 'Пользователь');
-      
-      if (error) {
-        setErrors({ general: error.message });
-        return;
-      }
-      
-      // Сохраняем email и открываем модальное окно для Telegram верификации
-      setRegisteredEmail(formData.email);
-      setShowTelegramModal(true);
-      
+      // Показываем инструкцию пользователю
+      setErrors({ 
+        general: 'Перейдите в Telegram бот и следуйте инструкциям для регистрации. После этого вернитесь на эту страницу.' 
+      });
     } catch (error) {
-      setErrors({ general: 'Ошибка при регистрации через Telegram' });
+      setErrors({ general: 'Ошибка при открытии Telegram бота' });
     } finally {
       setTelegramLoading(false);
     }
@@ -120,9 +103,7 @@ export const AuthPage: React.FC = () => {
         if (error) {
           setErrors({ general: error.message });
         } else {
-          if (isSupabaseConfigured) {
-            setErrors({ general: 'Регистрация успешна! Проверьте email для подтверждения аккаунта.' });
-          }
+          setErrors({ general: 'Регистрация успешна! Проверьте email для подтверждения аккаунта.' });
         }
       }
     } catch (error) {
@@ -150,12 +131,7 @@ export const AuthPage: React.FC = () => {
     setErrors({});
   };
 
-  const handleTelegramSuccess = () => {
-    setShowTelegramModal(false);
-    setErrors({ general: 'Аккаунт успешно привязан к Telegram! Теперь вы будете получать уведомления.' });
-  };
   return (
-    <>
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo and Header */}
@@ -224,8 +200,7 @@ export const AuthPage: React.FC = () => {
               )}
             </div>
 
-            {/* Password (только при обычной регистрации) */}
-            {(isLogin || !showTelegramModal) && (
+            {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Пароль
@@ -253,10 +228,9 @@ export const AuthPage: React.FC = () => {
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
               )}
             </div>
-            )}
 
-            {/* Confirm Password (только при обычной регистрации) */}
-            {!isLogin && !showTelegramModal && (
+            {/* Confirm Password (Registration only) */}
+            {!isLogin && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Подтвердите пароль
@@ -324,7 +298,6 @@ export const AuthPage: React.FC = () => {
             
             {/* Social Auth Buttons */}
             <div className="space-y-3">
-              {isSupabaseConfigured && (
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
@@ -339,7 +312,6 @@ export const AuthPage: React.FC = () => {
                 </svg>
                 <span>Войти через Google</span>
               </button>
-              )}
               
               {!isLogin && (
                 <button
@@ -381,13 +353,5 @@ export const AuthPage: React.FC = () => {
         </div>
       </div>
     </div>
-    {/* Telegram Verification Modal */}
-    <TelegramVerificationModal
-      isOpen={showTelegramModal}
-      onClose={() => setShowTelegramModal(false)}
-      userEmail={registeredEmail}
-      onSuccess={handleTelegramSuccess}
-    />
-    </>
   );
 };

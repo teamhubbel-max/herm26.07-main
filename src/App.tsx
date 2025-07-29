@@ -71,15 +71,6 @@ function App() {
     );
   }
 
-  // Show error or fallback info if needed
-  if (error && !user) {
-    console.log('Auth error:', error);
-  }
-
-  if (!isSupabaseConfigured && !user) {
-    console.log('Working in local mode without authentication');
-  }
-
   // Show auth page if user is not authenticated
   if (!user) {
     return <AuthPage />;
